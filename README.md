@@ -50,6 +50,12 @@ dist/setup/Nexus-AI-HARNESS-Setup-1.0.0.exe
 build/            промежуточные файлы PyInstaller
 ```
 
+## Новая версия
+
+1. Поменять `VERSION` в `nexus/version.py`.
+2. `python packaging/build.py --clean` — соберутся три файла в `dist/`.
+3. `python packaging/release.py` — тег, релиз и загрузка файлов.
+
 ## Обновление
 
 - **Из исходников**: `git pull`, либо кнопка ⟳ (делает `git pull --ff-only`).
