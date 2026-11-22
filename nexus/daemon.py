@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import mimetypes
 import queue
+import subprocess
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -186,6 +188,17 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 return self._json({"error": str(exc)}, 400)
             return self._json({**result, "stats": training.stats()})
+
+        if path == "/api/training/seed":
+            script = config.ROOT / "packaging" / "seed_training.py"
+            if not script.exists():
+                return self._json({"error": "нет packaging/seed_training.py"}, 404)
+            done = subprocess.run([sys.executable, str(script)], cwd=str(config.ROOT),
+                                  capture_output=True, text=True, encoding="utf-8",
+                                  errors="replace", timeout=600)
+            return self._json({"ok": done.returncode == 0,
+                               "output": (done.stdout or done.stderr or "")[-1500:],
+                               "stats": training.stats()})
 
         if path == "/api/training/compose":
             body = self._body()

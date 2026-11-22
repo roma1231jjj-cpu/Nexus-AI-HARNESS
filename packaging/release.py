@@ -19,6 +19,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+os.environ.setdefault("GIT_TERMINAL_PROMPT", "0")
 sys.path.insert(0, str(ROOT))
 
 from nexus.version import REPO, VERSION  # noqa: E402
@@ -28,13 +29,13 @@ def token() -> str:
     for name in ("GITHUB_TOKEN", "GH_TOKEN"):
         if os.environ.get(name):
             return os.environ[name]
+    payload = chr(10).join(["protocol=https", "host=github.com", ""])
     try:
-        cred = subprocess.run(["git", "credential", "fill"], cwd=str(ROOT),
-                              input="protocol=https
-host=github.com
-
-",
-                              capture_output=True, text=True, timeout=30)
+        env = dict(os.environ)
+        env.pop("GIT_TERMINAL_PROMPT", None)
+        print("беру токен из git credential helper…")
+        cred = subprocess.run(["git", "credential", "fill"], cwd=str(ROOT), env=env,
+                              input=payload, capture_output=True, text=True, timeout=30)
         for line in cred.stdout.splitlines():
             if line.startswith("password="):
                 return line.split("=", 1)[1].strip()
@@ -74,16 +75,17 @@ def main() -> int:
         print("нет файлов:", missing)
         return 2
 
+    print("публикую ветку и тег…")
     subprocess.run(["git", "tag", "-f", args.tag, "-m", f"Nexus-AI-HARNESS {VERSION}"],
-                   cwd=str(ROOT), capture_output=True)
-    subprocess.run(["git", "push", "-f", "origin", args.tag], cwd=str(ROOT), capture_output=True)
+                   cwd=str(ROOT))
+    subprocess.run(["git", "push", "origin", "HEAD:master"], cwd=str(ROOT))
+    subprocess.run(["git", "push", "-f", "origin", args.tag], cwd=str(ROOT))
 
-    body = (f"## Nexus-AI-HARNESS {VERSION}
+    note = ["Портабельный exe, архив и установщик.",
+            "Автообновление: приложение само находит этот релиз",
+            "и подменяет бинарник при перезапуске."]
+    body = "## Nexus-AI-HARNESS " + VERSION + "" + chr(10) * 2 + " ".join(note) + chr(10)
 
-"
-            "Портабельный exe, архив и установщик. Автообновление: приложение само "
-            "находит этот релиз и подменяет бинарник при перезапуске.
-")
     release = api("POST", f"https://api.github.com/repos/{REPO}/releases", {
         "tag_name": args.tag, "name": f"Nexus-AI-HARNESS {VERSION}",
         "body": body, "draft": False, "prerelease": False}, auth=auth)

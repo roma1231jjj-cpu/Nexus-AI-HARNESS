@@ -510,7 +510,24 @@ async function trainParams() {
 }
 
 async function composeDataset() {
-  $("composeBtn").disabled = true;
+  $("seedBtn").onclick = async () => {
+  const btn = $("seedBtn");
+  btn.disabled = true;
+  btn.textContent = "заполняю…";
+  try {
+    const response = await fetch("/api/training/seed", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    const data = await response.json();
+    const total = data.stats ? data.stats.total_records : 0;
+    btn.textContent = `материалов ${total}`;
+    if (data.stats) renderTraining(data.stats);
+  } catch (error) {
+    btn.textContent = "ошибка";
+  } finally {
+    btn.disabled = false;
+  }
+};
+
+$("composeBtn").disabled = true;
   try {
     const counts = await api("/api/training/compose", { categories: [...state.selectedCats] });
     $("composeBtn").textContent = `train ${counts.train} / val ${counts.val}`;
