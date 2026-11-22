@@ -1,0 +1,22 @@
+# окружение и кэш
+.venv/
+__pycache__/
+*.pyc
+
+# данные владельца: сессии, снимки, профиль браузера, логи
+data/sessions/
+data/shots/
+data/browser-profile/
+data/workspace/*
+!data/workspace/.gitkeep
+data/training/dataset/
+data/training/run.log
+data/logs/
+data/*.log
+data/*.err
+data/state.json
+data/.update-check
+
+# не выкладываем размышления и черновики
+logs/
+*.tmp

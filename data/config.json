@@ -1,0 +1,57 @@
+{
+  "provider": "llamacpp",
+  "model": "ada-4b",
+  "mode": "act",
+  "reasoning": true,
+  "max_steps": 24,
+  "providers": {
+    "mock": {
+      "kind": "mock",
+      "label": "Mock (проверка без модели)",
+      "model": "mock-1"
+    },
+    "ollama": {
+      "kind": "ollama",
+      "label": "Ollama (локально)",
+      "base_url": "http://127.0.0.1:11434"
+    },
+    "deepseek": {
+      "kind": "openai",
+      "label": "DeepSeek",
+      "base_url": "https://api.deepseek.com/v1",
+      "api_key_env": "DEEPSEEK_API_KEY",
+      "model": "deepseek-chat"
+    },
+    "openrouter": {
+      "kind": "openai",
+      "label": "OpenRouter",
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key_env": "OPENROUTER_API_KEY",
+      "model": "anthropic/claude-sonnet-4.5"
+    },
+    "local_hf": {
+      "kind": "openai",
+      "label": "Локальный сервер (vLLM/LM Studio)",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "api_key_env": "LOCAL_API_KEY",
+      "model": "qwen3.5-4b-merged"
+    },
+    "llamacpp": {
+      "kind": "openai",
+      "label": "Локальная Ada 4B (llama.cpp)",
+      "base_url": "http://127.0.0.1:8080/v1",
+      "model": "ada-4b"
+    }
+  },
+  "browser": {
+    "executable": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+    "headless": false,
+    "viewport": [
+      1440,
+      900
+    ]
+  },
+  "personas": [
+    "core"
+  ]
+}

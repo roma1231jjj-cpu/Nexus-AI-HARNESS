@@ -1,0 +1,141 @@
+# Nexus-AI-HARNESS
+
+**Локальный агент с полным доступом к компьютеру.** Один процесс, браузерный интерфейс, свои инструменты, хуки на каждое действие и подключение внешних MCP-серверов — включая управление настоящим браузером владельца.
+
+![Интерфейс](docs/ui-chat-real.png)
+
+## Что это
+
+Не чат-обёртка над API, а харнесс: демон держит сессии, модель зовёт инструменты, инструменты трогают файлы, терминал, мышь, клавиатуру и браузер. Всё локально, без облака — модель может быть любой, от Ollama до llama.cpp или внешнего API.
+
+Три режима доступа к ПК:
+
+| Режим | Что разрешено |
+|---|---|
+| **Plan** | каждое действие — с подтверждения пользователя |
+| **Act** | файлы, терминал и браузер без вопросов; мышь и клавиатура — по спросу |
+| **Full** | полный доступ: мышь, клавиатура, экран, всё |
+
+## Возможности
+
+- **27 инструментов** — файлы, поиск, терминал, рабочий стол, браузер и MCP.
+- **Хуки на события** — `pre_tool`, `post_tool`, `on_error`, `session_start`, `agent_end`: внешняя команда получает JSON на stdin и может заблокировать действие (код 2).
+- **MCP-клиент** — серверы по stdio, инструменты регистрируются как `mcp__<сервер>__<инструмент>`. Из коробки подключён [browse](https://github.com/) — управление реальным Chrome владельца с его логинами.
+- **Управление обучением** — карточка в дашборде: чекпойнты, стоп, продолжение, слияние адаптера, сборка GGUF.
+- **Автообновление** — демон раз в несколько часов сверяет копию с `origin`, кнопка ⟳ в шапке подтягивает изменения (`git pull --ff-only`, локальные правки не затираются).
+- **Свои данные для обучения** — разделы по предметам, праву, коду, музыке и агентам, загрузка JSONL и текстов прямо из интерфейса.
+
+## Установка
+
+```bash
+git clone https://github.com/roma1231jjj-cpu/Nexus-AI-HARNESS.git
+cd Nexus-AI-HARNESS
+python -m venv .venv
+.venv\Scripts\pip install -r requirements.txt
+```
+
+Дальше `run.bat` (Windows) или:
+
+```bash
+.venv\Scripts\python run.py 8848
+```
+
+Интерфейс: <http://127.0.0.1:8848/>
+
+## Модель
+
+Провайдер и модель выбираются в шапке. Поддерживаются:
+
+- **llama.cpp** — локальный `llama-server` с OpenAI-совместимым API (`http://127.0.0.1:8080/v1`),
+- **Ollama** — `http://127.0.0.1:11434`,
+- **OpenAI-совместимые API** — DeepSeek, OpenRouter, vLLM, LM Studio,
+- **mock** — проверка харнесса без модели.
+
+## Инструменты
+
+| Группа | Инструменты |
+|---|---|
+| Файлы | `fs_read` `fs_write` `fs_edit` `fs_list` `fs_glob` `fs_grep` |
+| Терминал | `shell` |
+| Планирование | `todo_write` |
+| Рабочий стол | `screen_shot` `gui_click` `gui_move` `gui_drag` `gui_type` `gui_press` `gui_scroll` `gui_windows` `gui_focus` |
+| Браузер | `browser_open` `browser_snapshot` `browser_click` `browser_type` `browser_press` `browser_eval` `browser_screenshot` |
+| MCP | `mcp__browse__execute` `mcp__browse__status` `mcp__browse__tabs` |
+
+## Хуки
+
+`data/hooks.json`:
+
+```json
+{
+  "pre_tool": [
+    { "name": "guard", "command": "python \"{root}\\data\\hooks\\guard.py\"", "timeout": 10 }
+  ],
+  "post_tool": [
+    { "name": "audit", "command": "python \"{root}\\data\\hooks\\audit.py\"", "timeout": 10 }
+  ]
+}
+```
+
+Хук получает на stdin:
+
+```json
+{ "event": "pre_tool", "tool": "shell", "args": { "command": "shutdown /s" }, "session": "ses_…" }
+```
+
+Код возврата `2` — действие запрещено, `stderr` уходит модели как причина. `{root}` подставляется путём проекта, поэтому конфиг переносимый.
+
+## MCP
+
+```json
+"mcp": {
+  "servers": {
+    "browse": {
+      "command": ["C:\\Users\\<you>\\.local\\bin\\browse.exe", "mcp"],
+      "class": "browser",
+      "enabled": true
+    }
+  }
+}
+```
+
+Сервер запускается по требованию, проходит `initialize` и `tools/list`, его инструменты попадают в общий реестр. Статус — `GET /api/state` → `mcp.servers`.
+
+## API
+
+| Метод | Назначение |
+|---|---|
+| `GET /api/state` | конфиг, сессии, модели, инструменты, MCP, хуки, обновление |
+| `POST /api/sessions` | новая сессия |
+| `POST /api/sessions/{id}/message` | отправить задачу |
+| `GET /api/sessions/{id}/events` | SSE-поток событий хода |
+| `POST /api/approve` | разрешить или отклонить вызов |
+| `POST /api/update` | `git pull --ff-only` |
+
+## Структура
+
+```
+nexus/
+  agent.py      цикл агента: модель → инструменты → результат
+  tools.py      реестр инструментов и их реализация
+  hooks.py      события и блокировки
+  mcp.py        MCP-клиент по stdio
+  browser.py    управление браузером через CDP
+  providers.py  провайдеры моделей и стриминг
+  training.py   материалы и запуск обучения
+  update.py     автообновление из git
+  daemon.py     HTTP-демон, API и SSE
+  ui/           интерфейс без сборки: HTML, CSS, JS
+data/           конфиг, хуки, сессии, снимки
+docs/           скриншоты
+```
+
+## Безопасность
+
+Инструменты работают с правами процесса. Режим Plan по умолчанию спрашивает подтверждение на каждый вызов, хуки дают второй контур защиты (например, запрет `shutdown`, `diskpart`, `rm -rf /`). Не запускайте харнесс с чужими конфигами хуков или MCP-серверами.
+
+## Лицензия
+
+MIT. Подпись: **Nexus × АутSquad**.
+
+![Светлая тема](docs/ui-light.png)

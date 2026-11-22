@@ -1,0 +1,28 @@
+{
+  "pre_tool": [
+    {
+      "name": "guard",
+      "command": "python \"{root}\\data\\hooks\\guard.py\"",
+      "timeout": 10
+    }
+  ],
+  "post_tool": [
+    {
+      "name": "audit",
+      "command": "python \"{root}\\data\\hooks\\audit.py\"",
+      "timeout": 10
+    }
+  ],
+  "on_error": [
+    {
+      "name": "audit",
+      "command": "python \"{root}\\data\\hooks\\audit.py\"",
+      "timeout": 10
+    }
+  ],
+  "session_start": [],
+  "before_agent_start": [],
+  "turn_end": [],
+  "agent_end": [],
+  "session_end": []
+}
