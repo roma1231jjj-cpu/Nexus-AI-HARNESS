@@ -63,6 +63,7 @@ class App:
             "modes": [{"id": k, **v} for k, v in config.MODES.items()],
             "sessions": self.store.list(),
             "models": models,
+            "version": __import__("nexus.version", fromlist=["VERSION"]).VERSION,
             "workspace": self.cfg.get("workspace"),
             "training": training.stats(),
             "mcp": {**self.mcp.summary(), "status": self.mcp_status},

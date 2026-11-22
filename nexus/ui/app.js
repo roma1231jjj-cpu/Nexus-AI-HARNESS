@@ -625,11 +625,19 @@ $("stopBtn").onclick = async () => {
   if (state.session) await api(`/api/sessions/${state.session.id}/stop`, {});
 };
 
+const THEMES = [
+  { id: "dark", icon: "◐", title: "Тема: полночь (чёрный + фиолетовый)" },
+  { id: "light", icon: "☀", title: "Тема: иней (белый + синий)" },
+  { id: "graphite", icon: "◈", title: "Тема: графит (графит + мята)" },
+];
 $("themeBtn").onclick = () => {
   const root = document.documentElement;
-  const next = root.dataset.theme === "dark" ? "light" : "dark";
-  root.dataset.theme = next;
-  localStorage.setItem("nexus-theme", next);
+  const index = THEMES.findIndex((theme) => theme.id === (root.dataset.theme || "dark"));
+  const next = THEMES[(index + 1) % THEMES.length];
+  root.dataset.theme = next.id;
+  $("themeBtn").textContent = next.icon;
+  $("themeBtn").title = next.title;
+  localStorage.setItem("nexus-theme", next.id);
 };
 
 $("reloadModels").onclick = () => loadModels();
@@ -649,8 +657,11 @@ async function loadModels() {
 
 /* ------------------------------------------------------------------ старт */
 async function boot() {
-  const saved = localStorage.getItem("nexus-theme");
-  if (saved) document.documentElement.dataset.theme = saved;
+  const saved = localStorage.getItem("nexus-theme") || "dark";
+  const theme = THEMES.find((item) => item.id === saved) || THEMES[0];
+  document.documentElement.dataset.theme = theme.id;
+  $("themeBtn").textContent = theme.icon;
+  $("themeBtn").title = theme.title;
 
   const data = await api("/api/state");
   state.cfg = data.config;
@@ -713,4 +724,13 @@ boot().catch((err) => {
   };
   refreshState();
   setInterval(refreshState, 60000);
+})();
+
+// версия в подписи сайдбара
+(async () => {
+  try {
+    const data = await (await fetch("/api/state")).json();
+    const label = $("versionLabel");
+    if (label && data.version) label.textContent = `v${data.version} · локальный демон`;
+  } catch (e) { /* тихо */ }
 })();

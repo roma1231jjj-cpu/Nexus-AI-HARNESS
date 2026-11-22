@@ -121,12 +121,20 @@ def main() -> int:
     parser.add_argument("--zip", action="store_true")
     parser.add_argument("--setup", action="store_true")
     parser.add_argument("--clean", action="store_true", help="удалить dist и build перед сборкой")
+    parser.add_argument("--no-shots", action="store_true", help="не обновлять скриншоты тем")
     args = parser.parse_args()
     everything = not (args.exe or args.zip or args.setup)
 
     if args.clean and everything:
         for folder in (DIST, BUILD):
             shutil.rmtree(folder, ignore_errors=True)
+
+    if everything and not args.no_shots:
+        print("обновляю скриншоты тем")
+        try:
+            subprocess.run([PY, "packaging/shots.py"], cwd=str(ROOT), timeout=600)
+        except subprocess.SubprocessError as exc:
+            print("скриншоты не снялись:", exc)
 
     exe = DIST / "portable" / EXE
     if everything or args.exe:

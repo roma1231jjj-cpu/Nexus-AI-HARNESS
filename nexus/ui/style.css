@@ -496,3 +496,43 @@ html, body {
 [data-theme="light"] #addText { background: rgba(255,255,255,.85); }
 #addText:focus { border-color: var(--stroke-strong); }
 .btn.ghost { background: transparent; }
+
+/* третья тема: графит + мята, нейтральная и спокойная */
+[data-theme="graphite"] {
+  --bg: #0b0f10;
+  --bg-2: #101718;
+  --panel: rgba(22, 30, 31, 0.62);
+  --panel-2: rgba(28, 38, 39, 0.72);
+  --stroke: rgba(148, 233, 200, 0.16);
+  --stroke-strong: rgba(74, 222, 128, 0.42);
+  --text: #e8f1ee;
+  --muted: #8ea39d;
+  --accent: #46d39a;
+  --accent-2: #22b07d;
+  --accent-soft: rgba(70, 211, 154, 0.14);
+  --ok: #46d39a;
+  --warn: #e5b567;
+  --err: #ef6f7b;
+  --glow: 0 0 0 1px rgba(70, 211, 154, 0.2), 0 18px 60px -24px rgba(34, 176, 125, 0.5);
+}
+
+[data-theme="graphite"] .aurora {
+  background:
+    radial-gradient(45% 45% at 18% 28%, rgba(34, 176, 125, 0.22), transparent 70%),
+    radial-gradient(40% 40% at 82% 12%, rgba(70, 211, 154, 0.18), transparent 70%),
+    radial-gradient(35% 35% at 55% 72%, rgba(148, 233, 200, 0.10), transparent 70%);
+}
+
+[data-theme="graphite"] .modes { background: rgba(70, 211, 154, 0.07); }
+[data-theme="graphite"] .msg.user .avatar { background: linear-gradient(140deg, #7ff0c0, #22b07d); }
+[data-theme="graphite"] .bubble code { background: rgba(70, 211, 154, 0.10); }
+[data-theme="graphite"] .bubble pre { background: rgba(6, 20, 16, 0.72); }
+[data-theme="graphite"] .tool { background: rgba(22, 32, 30, 0.78); }
+[data-theme="graphite"] #input { background: rgba(16, 26, 24, 0.86); }
+
+/* общие мелочи для всех тем: скроллбар и выделение */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--accent-soft); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--stroke-strong); background-clip: content-box; }
+::selection { background: var(--accent-soft); color: var(--text); }
