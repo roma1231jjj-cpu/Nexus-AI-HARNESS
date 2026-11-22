@@ -101,6 +101,7 @@ DEFAULTS: dict = {
         "executable": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
         "profile_dir": str(BROWSER_PROFILE),
         "headless": False,
+        "isolated": True,
         "viewport": [1440, 900],
     },
     "mcp": {
@@ -110,7 +111,7 @@ DEFAULTS: dict = {
                 "command": [r"C:\Users\roma1\.local\bin\browse.exe", "mcp"],
                 "class": "browser",
                 "env": {"OPENCODE_BROWSER_RUNTIME": "auto-update"},
-                "enabled": True,
+                "enabled": False,
             }
         }
     },

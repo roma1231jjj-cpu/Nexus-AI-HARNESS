@@ -67,6 +67,7 @@ class BrowserHub:
         self._page = None
         self._handles: list[Any] = []
         self._lock = threading.Lock()
+        self._signature: tuple | None = None
 
     # ---------------------------------------------------------------- инфраструктура
     def _ensure_thread(self) -> None:
@@ -96,9 +97,18 @@ class BrowserHub:
         return box.get("result")
 
     # ---------------------------------------------------------------- браузер
+    def _signature_of(self) -> tuple:
+        viewport = tuple(self.cfg.get("viewport") or [1440, 900])
+        return (str(self.cfg.get("profile_dir")), bool(self.cfg.get("headless", False)),
+                str(self.cfg.get("executable") or ""), viewport)
+
     def _launch(self) -> None:
-        if self._page is not None:
+        signature = self._signature_of()
+        if self._page is not None and signature == self._signature:
             return
+        if self._page is not None:
+            self._shutdown()
+
         from playwright.sync_api import sync_playwright  # noqa: PLC0415
 
         if self._pw is None:
@@ -106,12 +116,12 @@ class BrowserHub:
         profile = Path(self.cfg.get("profile_dir", "data/browser-profile"))
         profile.mkdir(parents=True, exist_ok=True)
         exe = self.cfg.get("executable") or None
+        viewport = self.cfg.get("viewport") or [1440, 900]
         args = [
             "--disable-blink-features=AutomationControlled",
             "--no-first-run",
             "--no-default-browser-check",
-            f"--window-size={self.cfg.get('viewport', [1440, 900])[0]},"
-            f"{self.cfg.get('viewport', [1440, 900])[1]}",
+            f"--window-size={viewport[0]},{viewport[1]}",
         ]
         self._ctx = self._pw.chromium.launch_persistent_context(
             user_data_dir=str(profile),
@@ -124,6 +134,24 @@ class BrowserHub:
         self._ctx.set_default_timeout(20000)
         pages = self._ctx.pages
         self._page = pages[0] if pages else self._ctx.new_page()
+        self._signature = signature
+
+    def _shutdown(self) -> None:
+        try:
+            if self._ctx is not None:
+                self._ctx.close()
+        except Exception:  # noqa: BLE001
+            pass
+        self._ctx = None
+        self._page = None
+        self._handles = []
+        self._signature = None
+        if self._pw is not None:
+            try:
+                self._pw.stop()
+            except Exception:  # noqa: BLE001
+                pass
+            self._pw = None
 
     def start(self) -> dict[str, Any]:
         def job():

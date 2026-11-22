@@ -240,6 +240,11 @@ def _browser_eval(ctx: Ctx, expression: str) -> str:
     return json.dumps(value, ensure_ascii=False)[:MAX_OUTPUT]
 
 
+def _browser_close(ctx: Ctx) -> str:
+    info = ctx.hub.close()
+    return "браузер агента закрыт" if info.get("closed") else "браузер уже был закрыт"
+
+
 def _browser_shot(ctx: Ctx) -> str:
     path = SHOTS / f"page-{int(time.time())}.png"
     info = ctx.hub.screenshot(path)
@@ -365,6 +370,7 @@ def _register() -> None:
         "expression": {"type": "string", "description": "JS-выражение в странице"},
     }, ["expression"]), _browser_eval))
     add("browser_screenshot", _tool("browser_screenshot", "browser", _obj({}, []), _browser_shot))
+    add("browser_close", _tool("browser_close", "browser", _obj({}, []), _browser_close))
 
 
 _register()

@@ -53,5 +53,18 @@
   },
   "personas": [
     "core"
-  ]
+  ],
+  "mcp": {
+    "servers": {
+      "browse": {
+        "command": [
+          "C:\\Users\\roma1\\.local\\bin\\browse.exe",
+          "mcp"
+        ],
+        "class": "browser",
+        "enabled": false,
+        "label": "browse — браузер владельца (выключен, включай осознанно)"
+      }
+    }
+  }
 }

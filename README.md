@@ -38,7 +38,7 @@ Glassmorphism: полупрозрачные панели, размытие фо�
 
 - **27 инструментов** — файлы, поиск, терминал, рабочий стол, браузер и MCP.
 - **Хуки на события** — `pre_tool`, `post_tool`, `on_error`, `session_start`, `agent_end`: внешняя команда получает JSON на stdin и может заблокировать действие (код 2).
-- **MCP-клиент** — серверы по stdio, инструменты регистрируются как `mcp__<сервер>__<инструмент>`. Из коробки подключён [browse](https://github.com/) — управление реальным Chrome владельца с его логинами.
+- **MCP-клиент** — серверы по stdio, инструменты регистрируются как `mcp__<сервер>__<инструмент>`. `browse` (реальный Chrome владельца) подключён, но по умолчанию выключен.
 - **Управление обучением** — карточка в дашборде: чекпойнты, стоп, продолжение, слияние адаптера, сборка GGUF.
 - **Автообновление** — демон раз в несколько часов сверяет копию с `origin`, кнопка ⟳ в шапке подтягивает изменения (`git pull --ff-only`, локальные правки не затираются).
 - **Свои данные для обучения** — разделы по предметам, праву, коду, музыке и агентам, загрузка JSONL и текстов прямо из интерфейса.
@@ -105,6 +105,22 @@ python -m venv .venv
 - **OpenAI-совместимые API** — DeepSeek, OpenRouter, vLLM, LM Studio,
 - **mock** — проверка харнесса без модели.
 
+## Чей браузер
+
+Агент работает в **своём** браузере: отдельный процесс Chrome со своим профилем
+`data/browser-profile`, свои куки и история. Он не открывает вкладки в браузере владельца
+и не видит его сессии.
+
+- `browser_open` `browser_snapshot` `browser_click` `browser_type` `browser_press`
+  `browser_eval` `browser_screenshot` `browser_close` — инструменты этого браузера.
+- `browser.headless: true` в `data/config.json` — браузер работает без окна, на экране
+  ничего не появляется (проверено: навигация и снимки работают).
+- Смена `profile_dir`, `headless` или `executable` перезапускает браузер на лету.
+
+Отдельно есть `browse` — MCP-сервер, который управляет **реальным** браузером владельца
+через расширение. По умолчанию он **выключен**: включается в `mcp.servers.browse.enabled`
+только когда действительно нужны чужие логины.
+
 ## Инструменты
 
 | Группа | Инструменты |
@@ -113,8 +129,8 @@ python -m venv .venv
 | Терминал | `shell` |
 | Планирование | `todo_write` |
 | Рабочий стол | `screen_shot` `gui_click` `gui_move` `gui_drag` `gui_type` `gui_press` `gui_scroll` `gui_windows` `gui_focus` |
-| Браузер | `browser_open` `browser_snapshot` `browser_click` `browser_type` `browser_press` `browser_eval` `browser_screenshot` |
-| MCP | `mcp__browse__execute` `mcp__browse__status` `mcp__browse__tabs` |
+| Браузер (свой профиль) | `browser_open` `browser_snapshot` `browser_click` `browser_type` `browser_press` `browser_eval` `browser_screenshot` `browser_close` |
+| MCP (по желанию) | `mcp__browse__execute` `mcp__browse__status` `mcp__browse__tabs` — браузер владельца |
 
 ## Хуки
 
