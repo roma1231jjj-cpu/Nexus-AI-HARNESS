@@ -5,9 +5,19 @@ from __future__ import annotations
 import copy
 import json
 import os
+import sys
 from pathlib import Path
 
-ROOT = Path(os.environ.get("NEXUS_ROOT", Path(__file__).resolve().parent.parent))
+FROZEN = bool(getattr(sys, "frozen", False))
+BUNDLE = Path(getattr(sys, "_MEIPASS", "")) if FROZEN else None
+
+if FROZEN:
+    # портабельная сборка: данные лежат рядом с exe, интерфейс распакован во временную папку
+    ROOT = Path(os.environ.get("NEXUS_ROOT", Path(sys.executable).resolve().parent))
+else:
+    ROOT = Path(os.environ.get("NEXUS_ROOT", Path(__file__).resolve().parent.parent))
+
+UI_DIR = (BUNDLE / "ui") if FROZEN else Path(__file__).resolve().parent / "ui"
 DATA = ROOT / "data"
 SESSIONS = DATA / "sessions"
 WORKSPACE = DATA / "workspace"

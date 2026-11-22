@@ -17,7 +17,7 @@ from .hooks import Hooks
 from .mcp import McpHub
 from .store import Store
 
-UI_DIR = Path(__file__).resolve().parent / "ui"
+UI_DIR = config.UI_DIR
 MAX_BODY = 24 * 1024 * 1024
 
 

@@ -2,7 +2,6 @@
 .venv/
 __pycache__/
 *.pyc
-
 # данные владельца: сессии, снимки, профиль браузера, логи
 data/sessions/
 data/shots/
@@ -16,7 +15,11 @@ data/*.log
 data/*.err
 data/state.json
 data/.update-check
-
 # не выкладываем размышления и черновики
 logs/
 *.tmp
+# сборки
+dist/
+build/
+*.spec
+packaging/nexus.ico

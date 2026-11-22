@@ -11,12 +11,19 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parent.parent
+from . import config
+from .version import ASSETS, RELEASES_API, VERSION
+
+ROOT = config.ROOT
+FROZEN = config.FROZEN
 STAMP = ROOT / "data" / ".update-check"
 CHECK_EVERY = 6 * 3600
 
@@ -31,10 +38,52 @@ def _git(*args: str, timeout: float = 60) -> tuple[int, str]:
 
 
 def available() -> bool:
+    if FROZEN:
+        return True
     return (ROOT / ".git").exists() and _git("rev-parse", "--is-inside-work-tree")[0] == 0
 
 
+def _release() -> dict[str, Any]:
+    request = urllib.request.Request(RELEASES_API, headers={
+        "User-Agent": f"Nexus-AI-HARNESS/{VERSION}",
+        "Accept": "application/vnd.github+json",
+    })
+    with urllib.request.urlopen(request, timeout=25) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _frozen_status(force: bool = False) -> dict[str, Any]:
+    fresh = STAMP.exists() and time.time() - STAMP.stat().st_mtime < CHECK_EVERY
+    cached: dict[str, Any] = {}
+    if STAMP.exists():
+        try:
+            cached = json.loads(STAMP.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            cached = {}
+    if not force and fresh and cached.get("mode") == "release":
+        return cached
+    try:
+        data = _release()
+        latest = str(data.get("tag_name") or "")
+        assets = [{"name": item.get("name"), "url": item.get("browser_download_url"),
+                   "size": item.get("size")} for item in data.get("assets") or []]
+        result = {
+            "ok": True, "mode": "release", "current": VERSION, "latest": latest.lstrip("v"),
+            "behind": 0 if latest.lstrip("v") == VERSION else 1,
+            "html": data.get("html_url"), "assets": assets,
+            "dirty": False, "checked": int(time.time()),
+        }
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        result = {"ok": False, "mode": "release", "reason": f"нет связи с GitHub: {exc}",
+                  "current": VERSION, "checked": int(time.time())}
+    STAMP.parent.mkdir(parents=True, exist_ok=True)
+    STAMP.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
+    return result
+
+
 def status() -> dict[str, Any]:
+    if FROZEN:
+        return _frozen_status()
     if not available():
         return {"ok": False, "reason": "это не git-копия"}
     code, branch = _git("rev-parse", "--abbrev-ref", "HEAD")
@@ -61,6 +110,8 @@ def status() -> dict[str, Any]:
 
 
 def check(force: bool = False) -> dict[str, Any]:
+    if FROZEN:
+        return _frozen_status(force=force)
     if not available():
         return {"ok": False, "reason": "это не git-копия"}
     fresh = STAMP.exists() and time.time() - STAMP.stat().st_mtime < CHECK_EVERY
@@ -74,6 +125,8 @@ def check(force: bool = False) -> dict[str, Any]:
 
 
 def apply() -> dict[str, Any]:
+    if FROZEN:
+        return _apply_release()
     if not available():
         return {"ok": False, "reason": "это не git-копия"}
     before = status()
@@ -95,3 +148,58 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+def _apply_release() -> dict[str, Any]:
+    """Портабельная сборка: качает новый exe рядом и подменяет его при перезапуске."""
+    state = _frozen_status(force=True)
+    if not state.get("ok"):
+        return {"ok": False, "reason": state.get("reason", "нет данных о релизе")}
+    if not state.get("behind"):
+        return {"ok": True, "output": f"уже последняя версия ({VERSION})"}
+    exe = Path(sys_executable())
+    asset = next((a for a in state.get("assets", [])
+                  if a["name"] == ASSETS["portable"]), None)
+    if not asset:
+        return {"ok": False, "reason": "в релизе нет файла Nexus-AI-HARNESS.exe"}
+    target = exe.with_suffix(".exe.new")
+    try:
+        request = urllib.request.Request(asset["url"], headers={
+            "User-Agent": f"Nexus-AI-HARNESS/{VERSION}"})
+        with urllib.request.urlopen(request, timeout=180) as response, open(target, "wb") as fh:
+            while True:
+                chunk = response.read(1 << 20)
+                if not chunk:
+                    break
+                fh.write(chunk)
+    except (urllib.error.URLError, OSError) as exc:
+        return {"ok": False, "reason": f"не скачалось: {exc}"}
+    return {"ok": True, "output": f"скачана версия {state.get('latest')} — применится при следующем запуске",
+            "pending": str(target)}
+
+
+def sys_executable() -> str:
+    import sys
+
+    return sys.executable if FROZEN else str(ROOT / "Nexus-AI-HARNESS.exe")
+
+
+def apply_pending() -> bool:
+    """Подменяет exe, скачанный прошлым обновлением. Возвращает True, если нужен рестарт."""
+    if not FROZEN:
+        return False
+    exe = Path(sys_executable())
+    fresh = exe.with_suffix(".exe.new")
+    if not fresh.exists() or fresh.stat().st_size < 1_000_000:
+        return False
+    script = exe.with_suffix(".update.bat")
+    lines = [
+        "@echo off",
+        "timeout /t 2 >nul",
+        f'move /y "{fresh}" "{exe}" >nul',
+        f'start "" "{exe}"',
+        'del "%~f0"',
+    ]
+    script.write_text("\r\n".join(lines) + "\r\n", encoding="utf-8")
+    subprocess.Popen(["cmd", "/c", str(script)], creationflags=0x00000008, close_fds=True)
+    return True
