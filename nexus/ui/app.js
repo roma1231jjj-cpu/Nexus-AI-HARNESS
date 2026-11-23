@@ -1,6 +1,7 @@
 /* Nexus-Harness UI: сессии, поток частей, подтверждения, режимы. */
 
 const $ = (id) => document.getElementById(id);
+const NOSTREAM = new URLSearchParams(location.search).has("nostream");
 const state = {
   cfg: null,
   personas: [],
@@ -103,9 +104,9 @@ function renderModels() {
 
 function renderHint() {
   const hints = {
-    plan: "Plan: каждое действие — только с твоего разрешения",
-    act: "Act: файлы, терминал и браузер без вопросов · мышь и клавиатура — с подтверждением",
-    full: "Full: полный доступ, включая мышь, клавиатуру и экран",
+    plan: t("hintPlanOnly"),
+    act: t("hintAct"),
+    full: t("hintFull"),
   };
   $("hint").textContent = hints[state.cfg.mode] || "";
 }
@@ -117,7 +118,7 @@ function renderSessions() {
     const row = document.createElement("div");
     row.className = "session" + (state.session && state.session.id === s.id ? " active" : "");
     row.textContent = s.title;
-    row.title = `${s.messages} сообщений`;
+    row.title = t("messagesCount", { n: s.messages });
     row.onclick = () => openSession(s.id);
     box.appendChild(row);
   });
@@ -148,7 +149,7 @@ function toolCard(part, result) {
     `<span class="tool-name">${esc(part.tool)}</span>` +
     `<span class="tool-args">${esc(shortJson(part.input || {}))}</span>` +
     `<span class="tool-status ${result ? (result.ok ? "ok" : "err") : ""}">` +
-    `${result ? (result.ok ? "готово" : "ошибка") : "…"}</span>`;
+    `${result ? (result.ok ? t("done") : t("error")) : "…"}</span>`;
   head.onclick = () => wrap.classList.toggle("collapsed");
   wrap.appendChild(head);
   const body = document.createElement("div");
@@ -163,9 +164,9 @@ function renderMessages() {
   stream.innerHTML = "";
   if (!state.session || !state.session.messages.length) {
     stream.innerHTML = `<div class="empty">
-      <b>Nexus-Harness</b> готов.<br>
-      Дай задачу текстом — агент прочитает файлы, откроет браузер, кликнет мышью или выполнит команду.<br>
-      Выбери режим справа сверху: Plan · Act · Full.
+      <b>Nexus-Harness</b> ${esc(t("emptyTitle"))}<br>
+      ${esc(t("emptyLine1"))}<br>
+      ${esc(t("emptyLine2"))}
     </div>`;
     return;
   }
@@ -188,7 +189,7 @@ function messageNode(msg, results) {
   wrap.className = "msg " + msg.role;
   const avatar = document.createElement("div");
   avatar.className = "avatar";
-  avatar.textContent = msg.role === "user" ? "Я" : msg.role === "tool" ? "⚙" : "N";
+  avatar.textContent = msg.role === "user" ? t("avatarMe") : msg.role === "tool" ? "⚙" : "N";
   wrap.appendChild(avatar);
 
   const bubble = document.createElement("div");
@@ -236,6 +237,7 @@ async function openSession(id) {
 }
 
 function connectSse(id) {
+  if (NOSTREAM) return;
   if (state.sse) state.sse.close();
   const sse = new EventSource(`/api/sessions/${id}/events`);
   sse.onmessage = (ev) => handleEvent(JSON.parse(ev.data));
@@ -362,7 +364,7 @@ function setBusy(busy) {
   state.busy = busy;
   $("send").disabled = busy;
   $("stopBtn").hidden = !busy;
-  $("send").textContent = busy ? "идёт…" : "Отправить";
+  $("send").textContent = busy ? t("sending") : t("send");
 }
 
 async function send() {
@@ -383,7 +385,7 @@ async function send() {
     setBusy(false);
     const div = document.createElement("div");
     div.className = "pill warn";
-    div.textContent = "не удалось отправить: " + err.message;
+    div.textContent = t("sendFailed", { e: err.message });
     $("stream").appendChild(div);
   }
 }
@@ -416,8 +418,8 @@ function renderTraining() {
   const records = chosen.reduce((n, c) => n + c.records, 0);
   const ds = data.dataset || {};
   $("trainSummary").textContent = sel.length
-    ? `выбрано ${chosen.length} разделов · ${records} примеров · в датасете train ${ds.train ? ds.train.records : 0} / val ${ds.val ? ds.val.records : 0}`
-    : `всего материала в библиотеке: ${data.total_records} примеров — выбери разделы`;
+    ? t("catsChosen", { n: chosen.length, records, train: ds.train ? ds.train.records : 0, val: ds.val ? ds.val.records : 0 })
+    : t("catsNone", { n: data.total_records });
 
   const sel2 = $("addCat");
   const prev = sel2.value;
@@ -425,7 +427,8 @@ function renderTraining() {
   data.categories.forEach((c) => {
     const o = document.createElement("option");
     o.value = c.id;
-    o.textContent = `${c.group} · ${c.name}`;
+    const cc = catText(c);
+    o.textContent = `${cc.group} · ${cc.name}`;
     sel2.appendChild(o);
   });
   if (prev) sel2.value = prev;
@@ -438,11 +441,12 @@ function renderCats() {
     const on = state.selectedCats.has(cat.id);
     const card = document.createElement("div");
     card.className = "cat" + (on ? " on" : "");
+    const ct = catText(cat);
     card.innerHTML =
-      `<div class="cat-head"><span class="cat-name">${esc(cat.name)}</span></div>` +
-      `<div class="cat-group">${esc(cat.group)}</div>` +
-      `<div class="cat-hint">${esc(cat.hint)}</div>` +
-      `<div class="cat-stat ${cat.records ? "" : "empty"}">${cat.records ? cat.records + " прим." : "пусто"}</div>`;
+      `<div class="cat-head"><span class="cat-name">${esc(ct.name)}</span></div>` +
+      `<div class="cat-group">${esc(ct.group)}</div>` +
+      `<div class="cat-hint">${esc(ct.hint)}</div>` +
+      `<div class="cat-stat ${cat.records ? "" : "empty"}">${cat.records ? t("recordsShort", { n: cat.records }) : t("emptyCat")}</div>`;
     card.onclick = (ev) => {
       if (ev.target.classList.contains("plus")) return;
       on ? state.selectedCats.delete(cat.id) : state.selectedCats.add(cat.id);
@@ -452,7 +456,7 @@ function renderCats() {
     const plus = document.createElement("button");
     plus.className = "plus";
     plus.textContent = "＋";
-    plus.title = "добавить материал в этот раздел";
+    plus.title = t("addToCat");
     plus.onclick = (ev) => {
       ev.stopPropagation();
       $("addCat").value = cat.id;
@@ -468,8 +472,8 @@ async function addMaterial() {
   const category = $("addCat").value;
   const text = $("addText").value;
   if (!text.trim()) {
-    $("addBtn").textContent = "пусто";
-    setTimeout(() => ($("addBtn").textContent = "Добавить"), 1200);
+    $("addBtn").textContent = t("emptyCat");
+    setTimeout(() => ($("addBtn").textContent = t("addBtn")), 1200);
     return;
   }
   $("addBtn").disabled = true;
@@ -482,15 +486,15 @@ async function addMaterial() {
     });
     $("addText").value = "";
     const written = res.written || 0;
-    const bad = res.bad_lines ? `, битых строк ${res.bad_lines}` : "";
+    const bad = res.bad_lines ? t("badLines", { n: res.bad_lines }) : "";
     $("addBtn").textContent = `+${written}${bad}`;
     state.training = res.stats;
     renderTraining();
-    setTimeout(() => ($("addBtn").textContent = "Добавить"), 1500);
+    setTimeout(() => ($("addBtn").textContent = t("addBtn")), 1500);
   } catch (err) {
-    $("addBtn").textContent = "ошибка";
+    $("addBtn").textContent = t("error");
     console.error(err);
-    setTimeout(() => ($("addBtn").textContent = "Добавить"), 1500);
+    setTimeout(() => ($("addBtn").textContent = t("addBtn")), 1500);
   } finally {
     $("addBtn").disabled = false;
   }
@@ -513,15 +517,15 @@ async function composeDataset() {
   $("seedBtn").onclick = async () => {
   const btn = $("seedBtn");
   btn.disabled = true;
-  btn.textContent = "заполняю…";
+  btn.textContent = t("filling");
   try {
     const response = await fetch("/api/training/seed", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     const data = await response.json();
     const total = data.stats ? data.stats.total_records : 0;
-    btn.textContent = `материалов ${total}`;
+    btn.textContent = t("materialsTotal", { n: total });
     if (data.stats) renderTraining(data.stats);
   } catch (error) {
-    btn.textContent = "ошибка";
+    btn.textContent = t("error");
   } finally {
     btn.disabled = false;
   }
@@ -533,10 +537,10 @@ $("composeBtn").disabled = true;
     $("composeBtn").textContent = `train ${counts.train} / val ${counts.val}`;
     await loadTraining();
   } catch (err) {
-    $("composeBtn").textContent = "ошибка";
+    $("composeBtn").textContent = t("error");
   } finally {
     setTimeout(() => {
-      $("composeBtn").textContent = "Собрать датасет";
+      $("composeBtn").textContent = t("composeBtn");
       $("composeBtn").disabled = false;
     }, 1800);
   }
@@ -548,15 +552,15 @@ async function startTraining() {
     const res = await api("/api/training/start", await trainParams());
     if (res.error) {
       $("startTrainBtn").textContent = res.error.slice(0, 34);
-      setTimeout(() => ($("startTrainBtn").textContent = "Начать обучение"), 2600);
+      setTimeout(() => ($("startTrainBtn").textContent = t("startTrain")), 2600);
       return;
     }
     $("runBox").hidden = false;
     $("runName").textContent = res.run_name;
     pollRun();
   } catch (err) {
-    $("startTrainBtn").textContent = "ошибка";
-    setTimeout(() => ($("startTrainBtn").textContent = "Начать обучение"), 2000);
+    $("startTrainBtn").textContent = t("error");
+    setTimeout(() => ($("startTrainBtn").textContent = t("startTrain")), 2000);
   } finally {
     $("startTrainBtn").disabled = false;
   }
@@ -575,13 +579,13 @@ async function pollRun() {
     $("runBox").hidden = !(active || st.running);
     $("stopTrainBtn").hidden = !st.running;
     if (active) {
-      $("runName").textContent = `${st.run_name || "прогон"} · ${st.percent}%`;
+      $("runName").textContent = `${st.run_name || t("runName")} · ${st.percent}%`;
       $("runBar").style.width = (st.percent || 0) + "%";
-      $("runSteps").textContent = `шаг ${st.steps}${st.total ? " / " + st.total : ""}` +
-        (st.per_step_s ? ` · ${st.per_step_s} с/шаг` : "");
-      $("runLoss").textContent = st.loss != null ? "loss " + st.loss : "loss —";
+      $("runSteps").textContent = (st.total ? t("stepsOf", { n: st.steps, total: st.total }) : t("stepsLabel", { n: st.steps })) +
+        (st.per_step_s ? t("perStep", { n: st.per_step_s }) : "");
+      $("runLoss").textContent = st.loss != null ? "loss " + st.loss : t("lossDash");
       const h = Math.floor((st.eta_s || 0) / 3600), m = Math.floor(((st.eta_s || 0) % 3600) / 60);
-      $("runEta").textContent = st.eta_s ? `осталось ~${h} ч ${m} мин` : "";
+      $("runEta").textContent = st.eta_s ? t("etaLeft", { h, m }) : "";
     }
     state.runTimer = setTimeout(pollRun, st.running ? 4000 : 15000);
   } catch (err) {
@@ -643,17 +647,21 @@ $("stopBtn").onclick = async () => {
 };
 
 const THEMES = [
-  { id: "dark", icon: "◐", title: "Тема: полночь (чёрный + фиолетовый)" },
-  { id: "light", icon: "☀", title: "Тема: иней (белый + синий)" },
-  { id: "graphite", icon: "◈", title: "Тема: графит (графит + мята)" },
+  { id: "dark", icon: "◐", titleKey: "themeDark" },
+  { id: "light", icon: "☀", titleKey: "themeLight" },
+  { id: "graphite", icon: "◈", titleKey: "themeGraphite" },
 ];
+const paintTheme = () => {
+  const current = THEMES.find((theme) => theme.id === (document.documentElement.dataset.theme || "dark")) || THEMES[0];
+  $("themeBtn").textContent = current.icon;
+  $("themeBtn").title = t(current.titleKey);
+};
 $("themeBtn").onclick = () => {
   const root = document.documentElement;
   const index = THEMES.findIndex((theme) => theme.id === (root.dataset.theme || "dark"));
   const next = THEMES[(index + 1) % THEMES.length];
   root.dataset.theme = next.id;
-  $("themeBtn").textContent = next.icon;
-  $("themeBtn").title = next.title;
+  paintTheme();
   localStorage.setItem("nexus-theme", next.id);
 };
 
@@ -664,21 +672,22 @@ async function loadModels() {
     const data = await api(`/api/models?t=${Date.now()}`);
     state.models = data.models || [];
     if (!state.models.length && data.error) {
-      $("hint").textContent = "моделей нет: " + data.error;
+      $("hint").textContent = t("noModels", { e: data.error });
     }
     renderModels();
   } catch (err) {
-    $("hint").textContent = "ошибка списка моделей: " + err.message;
+    $("hint").textContent = t("modelsError", { e: err.message });
   }
 }
 
 /* ------------------------------------------------------------------ старт */
 async function boot() {
+  const themeParam = new URLSearchParams(location.search).get("theme");
+  if (THEMES.some((item) => item.id === themeParam)) localStorage.setItem("nexus-theme", themeParam);
   const saved = localStorage.getItem("nexus-theme") || "dark";
   const theme = THEMES.find((item) => item.id === saved) || THEMES[0];
   document.documentElement.dataset.theme = theme.id;
-  $("themeBtn").textContent = theme.icon;
-  $("themeBtn").title = theme.title;
+  paintTheme();
 
   const data = await api("/api/state");
   state.cfg = data.config;
@@ -708,7 +717,7 @@ async function boot() {
 }
 
 boot().catch((err) => {
-  $("stream").innerHTML = `<div class="empty">Не удалось загрузить состояние: ${esc(err.message)}</div>`;
+  $("stream").innerHTML = `<div class="empty">${esc(t("bootFailed", { e: err.message }))}</div>`;
 });
 
 // --- автообновление из git ---
@@ -718,7 +727,7 @@ boot().catch((err) => {
   let behind = 0;
   const paint = () => {
     btn.textContent = behind > 0 ? "⟳•" : "⟳";
-    btn.title = behind > 0 ? `Доступно обновление: ${behind} коммит(а). Нажми, чтобы подтянуть` : "Обновление из git";
+    btn.title = behind > 0 ? t("updateAvailable", { n: behind }) : t("updateTitle");
     btn.style.color = behind > 0 ? "var(--ok)" : "";
   };
   const refreshState = async () => {
@@ -729,14 +738,14 @@ boot().catch((err) => {
     } catch (e) { /* тихо */ }
   };
   btn.onclick = async () => {
-    if (!confirm("Подтянуть обновления из git?")) return;
+    if (!confirm(t("updateConfirm"))) return;
     btn.textContent = "…";
     try {
       const r = await fetch("/api/update", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
       const data = await r.json();
-      if (!data.ok) alert("Не обновилось: " + (data.reason || data.output || "причина неизвестна"));
-      else alert("Обновлено. Перезапусти демон, чтобы применить код.");
-    } catch (e) { alert("Ошибка: " + e.message); }
+      if (!data.ok) alert(t("updateFailed", { r: data.reason || data.output || t("unknownReason") }));
+      else alert(t("updateDone"));
+    } catch (e) { alert(t("errorPrefix", { e: e.message })); }
     behind = 0; paint();
   };
   refreshState();
@@ -748,6 +757,17 @@ boot().catch((err) => {
   try {
     const data = await (await fetch("/api/state")).json();
     const label = $("versionLabel");
-    if (label && data.version) label.textContent = `v${data.version} · локальный демон`;
+    if (label && data.version) label.textContent = t("versionSuffix", { v: data.version });
   } catch (e) { /* тихо */ }
 })();
+
+window.onNexusLangChange = () => {
+  paintTheme();
+  if (state.cfg) {
+    renderHint();
+    renderSessions();
+    renderMessages();
+    if (!$("trainView").hidden && state.training) renderTraining();
+  }
+  $("addBtn").textContent = t("addBtn");
+};

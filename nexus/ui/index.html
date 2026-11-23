@@ -16,21 +16,21 @@
       <div class="logo">N</div>
       <div>
         <div class="brand-name">Nexus-AI-HARNESS</div>
-        <div class="brand-sub">агент с доступом к ПК</div>
+        <div class="brand-sub" data-i18n="brandSub">агент с доступом к ПК</div>
       </div>
     </div>
 
-    <button class="new-chat" id="newSession">＋ Новый диалог</button>
+    <button class="new-chat" id="newSession" data-i18n="newSession">＋ Новый диалог</button>
 
-    <div class="side-label">Сессии</div>
+    <div class="side-label" data-i18n="sessions">Сессии</div>
     <div class="sessions" id="sessions"></div>
 
-    <div class="side-label" id="todoLabel" hidden>План</div>
+    <div class="side-label" id="todoLabel" data-i18n="plan" hidden>План</div>
     <div class="todos" id="todos"></div>
 
     <div class="side-foot">
       <div class="sig">Nexus × АутSquad</div>
-      <div class="sig-sub" id="versionLabel">локальный демон</div>
+      <div class="sig-sub" id="versionLabel" data-i18n="localDaemon">локальный демон</div>
     </div>
   </aside>
 
@@ -39,22 +39,23 @@
       <div class="modes" id="modes"></div>
 
       <div class="pickers">
-        <select id="provider" class="pick" title="Провайдер"></select>
-        <input id="model" class="pick model" list="modelList" placeholder="модель">
+        <select id="provider" class="pick" data-i18n-title="providerTitle" title="Провайдер"></select>
+        <input id="model" class="pick model" list="modelList" data-i18n-placeholder="modelPlaceholder" placeholder="модель">
         <datalist id="modelList"></datalist>
-        <button class="pick ghost" id="reloadModels" title="Обновить список моделей">⟳</button>
+        <button class="pick ghost" id="reloadModels" data-i18n-title="reloadModelsTitle" title="Обновить список моделей">⟳</button>
       </div>
 
       <div class="tabs">
-        <button class="tab active" data-view="chat">Чат</button>
-        <button class="tab" data-view="train">Обучение</button>
+        <button class="tab active" data-view="chat" data-i18n="tabChat">Чат</button>
+        <button class="tab" data-view="train" data-i18n="tabTrain">Обучение</button>
       </div>
       <div class="spacer"></div>
 
       <div class="top-right">
-        <button class="icon-btn" id="stopBtn" title="Остановить" hidden>■</button>
-        <button class="icon-btn" id="updateBtn" title="Обновление из git">⟳</button>
-        <button class="icon-btn" id="themeBtn" title="Тема">◐</button>
+        <button class="icon-btn" id="langBtn" title="Язык интерфейса">EN</button>
+        <button class="icon-btn" id="stopBtn" data-i18n-title="stopTitle" title="Остановить" hidden>■</button>
+        <button class="icon-btn" id="updateBtn" data-i18n-title="updateTitle" title="Обновление из git">⟳</button>
+        <button class="icon-btn" id="themeBtn" data-i18n-title="themeTitle" title="Тема">◐</button>
       </div>
     </header>
 
@@ -63,20 +64,20 @@
     <section class="train" id="trainView" hidden>
       <div class="train-head glass">
         <div>
-          <div class="train-title">Материалы для обучения</div>
-          <div class="mut small" id="trainSummary">разделы не выбраны</div>
+          <div class="train-title" data-i18n="trainMaterials">Материалы для обучения</div>
+          <div class="mut small" id="trainSummary" data-i18n="trainNoCats">разделы не выбраны</div>
         </div>
         <div class="train-actions">
-          <button class="btn ghost" id="seedBtn" title="Заполнить разделы нашими материалами">Базовый минимум</button>
-          <button class="btn ghost" id="composeBtn">Собрать датасет</button>
-          <button class="btn ghost" id="stopTrainBtn" hidden>Остановить</button>
-          <button class="btn allow" id="startTrainBtn">Начать обучение</button>
+          <button class="btn ghost" id="seedBtn" data-i18n="seedBtn" data-i18n-title="seedTitle" title="Заполнить разделы нашими материалами">Базовый минимум</button>
+          <button class="btn ghost" id="composeBtn" data-i18n="composeBtn">Собрать датасет</button>
+          <button class="btn ghost" id="stopTrainBtn" data-i18n="stopBtnSmall" hidden>Остановить</button>
+          <button class="btn allow" id="startTrainBtn" data-i18n="startTrain">Начать обучение</button>
         </div>
       </div>
 
       <div class="params glass">
-        <label>База <input class="pick" id="pBase" value="unsloth/Qwen3.5-4B"></label>
-        <label>Эпох <input class="pick num" id="pEpochs" type="number" value="1" min="1" max="5"></label>
+        <label><span data-i18n="base">База</span> <input class="pick" id="pBase" value="unsloth/Qwen3.5-4B"></label>
+        <label><span data-i18n="epochs">Эпох</span> <input class="pick num" id="pEpochs" type="number" value="1" min="1" max="5"></label>
         <label>seq <input class="pick num" id="pSeq" type="number" value="768" step="128"></label>
         <label>lr <input class="pick num" id="pLr" type="number" value="0.0002" step="0.00005"></label>
         <label>r <input class="pick num" id="pR" type="number" value="16" min="4" max="64"></label>
@@ -86,40 +87,40 @@
       <div class="runbox glass" id="runBox" hidden>
         <div class="row"><b id="runName">—</b><span class="mut" id="runEta"></span></div>
         <div class="bar"><i id="runBar"></i></div>
-        <div class="row mut small"><span id="runSteps">шаг 0</span><span id="runLoss">loss —</span></div>
+        <div class="row mut small"><span id="runSteps" data-i18n="stepZero">шаг 0</span><span id="runLoss" data-i18n="lossDash">loss —</span></div>
       </div>
 
       <div class="cats" id="cats"></div>
 
       <div class="adder glass">
         <div class="adder-head">
-          <b>Добавить материал</b>
-          <span class="mut small">JSONL с messages (как в CONVENTIONS.md), или текст — сохранится как карточка материала</span>
+          <b data-i18n="addMaterial">Добавить материал</b>
+          <span class="mut small" data-i18n="addMaterialHint">JSONL с messages (как в CONVENTIONS.md), или текст — сохранится как карточка материала</span>
         </div>
         <div class="adder-row">
           <select class="pick" id="addCat"></select>
-          <input class="pick" id="addName" placeholder="название (например: дроби 6 класс)">
-          <button class="pick ghost" id="fileBtn" title="Загрузить файлы">📎</button>
+          <input class="pick" id="addName" data-i18n-placeholder="addNamePlaceholder" placeholder="название (например: дроби 6 класс)">
+          <button class="pick ghost" id="fileBtn" data-i18n-title="uploadTitle" title="Загрузить файлы">📎</button>
           <input type="file" id="fileInput" multiple accept=".jsonl,.json,.txt,.md" hidden>
         </div>
-        <textarea id="addText" rows="4" placeholder="Вставь текст материала или JSONL…"></textarea>
+        <textarea id="addText" rows="4" data-i18n-placeholder="addTextPlaceholder" placeholder="Вставь текст материала или JSONL…"></textarea>
         <div class="adder-row">
           <select class="pick" id="addFormat">
-            <option value="text">текст</option>
+            <option value="text" data-i18n="fmtText">текст</option>
             <option value="jsonl">JSONL</option>
           </select>
           <div class="spacer"></div>
-          <button class="btn allow" id="addBtn">Добавить</button>
+          <button class="btn allow" id="addBtn" data-i18n="addBtn">Добавить</button>
         </div>
       </div>
     </section>
 
     <div class="composer glass" id="composerEl">
       <div class="composer-inner">
-        <textarea id="input" rows="1" placeholder="Задача для Nexus…  Enter — отправить, Shift+Enter — новая строка"></textarea>
-        <button id="send" class="send">Отправить</button>
+        <textarea id="input" rows="1" data-i18n-placeholder="inputPlaceholder" placeholder="Задача для Nexus…  Enter — отправить, Shift+Enter — новая строка"></textarea>
+        <button id="send" class="send" data-i18n="send">Отправить</button>
       </div>
-      <div class="hint" id="hint">Plan: подтверждаешь каждое действие · Act: без вопросов, кроме мыши · Full: полный доступ</div>
+      <div class="hint" id="hint" data-i18n="hintPlan">Plan: подтверждаешь каждое действие · Act: без вопросов, кроме мыши · Full: полный доступ</div>
     </div>
   </main>
 </div>
@@ -127,17 +128,18 @@
 <div class="modal" id="modal" hidden>
   <div class="modal-card glass">
     <div class="modal-head">
-      <span class="pill warn">Требуется разрешение</span>
+      <span class="pill warn" data-i18n="approval">Требуется разрешение</span>
       <span class="modal-tool" id="modalTool"></span>
     </div>
     <pre class="modal-args" id="modalArgs"></pre>
     <div class="modal-actions">
-      <button class="btn deny" id="deny">Отклонить</button>
-      <button class="btn allow" id="allow">Разрешить</button>
+      <button class="btn deny" id="deny" data-i18n="deny">Отклонить</button>
+      <button class="btn allow" id="allow" data-i18n="allow">Разрешить</button>
     </div>
   </div>
 </div>
 
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

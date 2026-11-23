@@ -130,7 +130,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path in ("/", "/index.html"):
             return self._static("index.html")
-        if path in ("/app.js", "/style.css", "/favicon.svg"):
+        if path in ("/app.js", "/i18n.js", "/style.css", "/favicon.svg"):
             return self._static(path)
         if path == "/api/state":
             return self._json(APP.state())
