@@ -28,13 +28,15 @@ The button in the top bar switches between Russian and English: `EN` → English
 
 Every interface label is translated: buttons, tabs, modes, hints, training section cards, errors, the approval dialog. Data that comes from the daemon (session titles, provider names, material contents) stays in its original language.
 
-| Chat — English | Training — English |
-|---|---|
-| ![Chat EN](docs/screenshots/en-chat.png) | ![Training EN](docs/screenshots/en-train.png) |
+Three themes, the same across every Nexus app: Midnight (black + violet), Frost (white + blue), Graphite (graphite + mint). Screenshots show the English interface.
 
-| Chat — Russian | Training — Russian |
+| Midnight | Frost | Graphite |
+|---|---|---|
+| ![Chat — midnight](docs/screenshots/en-dark.png) | ![Chat — frost](docs/screenshots/en-light.png) | ![Chat — graphite](docs/screenshots/en-graphite.png) |
+
+| Training | Russian interface (midnight) |
 |---|---|
-| ![Чат RU](docs/screenshots/ru-chat.png) | ![Обучение RU](docs/screenshots/ru-train.png) |
+| ![Training EN](docs/screenshots/en-train.png) | ![Чат RU](docs/screenshots/ru-chat.png) |
 
 ## Design system
 

@@ -42,13 +42,19 @@ Glassmorphism: полупрозрачные панели, размытие фо�
 
 Переведены все подписи интерфейса: кнопки, вкладки, режимы, подсказки, карточки разделов обучения, ошибки, диалог подтверждения. Данные, которые приходят от демона (названия сессий, имена провайдеров, содержимое материалов), остаются на языке оригинала.
 
-| Чат — русский | Чат — английский |
-|---|---|
-| ![Чат RU](docs/screenshots/ru-chat.png) | ![Chat EN](docs/screenshots/en-chat.png) |
+Три темы — как во всех приложениях Nexus: Полночь (чёрный + фиолетовый), Иней (белый + синий), Графит (графит + мята). Скриншоты интерфейса — на английском.
 
-| Обучение — русский | Training — английский |
+| Полночь | Иней | Графит |
+|---|---|---|
+| ![Chat — midnight](docs/screenshots/en-dark.png) | ![Chat — frost](docs/screenshots/en-light.png) | ![Chat — graphite](docs/screenshots/en-graphite.png) |
+
+| Обучение, английский | Training, English |
 |---|---|
-| ![Обучение RU](docs/screenshots/ru-train.png) | ![Training EN](docs/screenshots/en-train.png) |
+| ![Обучение EN](docs/screenshots/en-train.png) | ![Training EN](docs/screenshots/en-train.png) |
+
+| Русский интерфейс | Русская тема «Иней» |
+|---|---|
+| ![Чат RU](docs/screenshots/ru-chat.png) | ![Иней RU](docs/screenshots/ru-light.png) |
 
 ## Возможности
 
