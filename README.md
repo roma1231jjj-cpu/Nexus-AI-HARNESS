@@ -48,9 +48,9 @@ Glassmorphism: полупрозрачные панели, размытие фо�
 |---|---|---|
 | ![Chat — midnight](docs/screenshots/en-dark.png) | ![Chat — frost](docs/screenshots/en-light.png) | ![Chat — graphite](docs/screenshots/en-graphite.png) |
 
-| Обучение, английский | Training, English |
+| Обучение — русский | Training — English |
 |---|---|
-| ![Обучение EN](docs/screenshots/en-train.png) | ![Training EN](docs/screenshots/en-train.png) |
+| ![Обучение RU](docs/screenshots/ru-train.png) | ![Training EN](docs/screenshots/en-train.png) |
 
 | Русский интерфейс | Русская тема «Иней» |
 |---|---|
