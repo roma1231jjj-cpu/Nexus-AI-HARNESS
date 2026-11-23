@@ -4,6 +4,7 @@ const I18N = {
   ru: {
     brandSub: "агент с доступом к ПК",
     newSession: "＋ Новый диалог",
+    newChat: "Новый диалог",
     sessions: "Сессии",
     plan: "План",
     localDaemon: "локальный демон",
@@ -82,6 +83,7 @@ const I18N = {
   en: {
     brandSub: "an agent with access to the PC",
     newSession: "＋ New chat",
+    newChat: "New chat",
     sessions: "Sessions",
     plan: "Plan",
     localDaemon: "local daemon",

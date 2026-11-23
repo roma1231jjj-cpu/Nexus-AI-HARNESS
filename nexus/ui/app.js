@@ -117,7 +117,8 @@ function renderSessions() {
   (state.sessions || []).forEach((s) => {
     const row = document.createElement("div");
     row.className = "session" + (state.session && state.session.id === s.id ? " active" : "");
-    row.textContent = s.title;
+    const plain = s.title === "Новая сессия" || s.title === "New chat";
+    row.textContent = plain ? t("newChat") : s.title;
     row.title = t("messagesCount", { n: s.messages });
     row.onclick = () => openSession(s.id);
     box.appendChild(row);
@@ -372,7 +373,7 @@ async function send() {
   const text = input.value.trim();
   if (!text || state.busy) return;
   if (!state.session) {
-    state.session = await api("/api/sessions", {});
+    state.session = await api("/api/sessions", { title: t("newChat") });
     await refreshSessions();
     connectSse(state.session.id);
   }
@@ -629,7 +630,7 @@ $("input").addEventListener("input", () => {
 });
 
 $("newSession").onclick = async () => {
-  const session = await api("/api/sessions", {});
+  const session = await api("/api/sessions", { title: t("newChat") });
   state.session = session;
   state.session.messages = session.messages || [];
   await refreshSessions();
