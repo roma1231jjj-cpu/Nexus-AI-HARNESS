@@ -1,0 +1,684 @@
+<html lang="en" data-theme="graphite"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nexus-Harness</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<style>
+/* Nexus-Harness: glassmorphism, тёмная тема (чёрный + фиолетовый), светлая (белый + синий) */
+
+:root {
+  --bg: #07060c;
+  --bg-2: #0d0a18;
+  --panel: rgba(22, 17, 34, 0.55);
+  --panel-2: rgba(30, 22, 48, 0.62);
+  --stroke: rgba(160, 120, 255, 0.18);
+  --stroke-strong: rgba(168, 85, 247, 0.45);
+  --text: #ece9f7;
+  --muted: #9c93b8;
+  --accent: #a855f7;
+  --accent-2: #7c3aed;
+  --accent-soft: rgba(168, 85, 247, 0.14);
+  --ok: #3ddc97;
+  --warn: #ffb454;
+  --err: #ff6b81;
+  --glow: 0 0 0 1px rgba(168, 85, 247, 0.22), 0 18px 60px -24px rgba(124, 58, 237, 0.55);
+  --radius: 18px;
+  --mono: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+}
+
+[data-theme="light"] {
+  --bg: #f4f7ff;
+  --bg-2: #e9eeff;
+  --panel: rgba(255, 255, 255, 0.62);
+  --panel-2: rgba(255, 255, 255, 0.78);
+  --stroke: rgba(37, 99, 235, 0.16);
+  --stroke-strong: rgba(37, 99, 235, 0.38);
+  --text: #101528;
+  --muted: #5c6a8a;
+  --accent: #2563eb;
+  --accent-2: #1d4ed8;
+  --accent-soft: rgba(37, 99, 235, 0.12);
+  --ok: #12a06a;
+  --warn: #c47a12;
+  --err: #d93a52;
+  --glow: 0 0 0 1px rgba(37, 99, 235, 0.16), 0 18px 60px -28px rgba(37, 99, 235, 0.45);
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.55 "Inter", "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.aurora {
+  position: fixed;
+  inset: -20% -10% auto -10%;
+  height: 70vh;
+  background:
+    radial-gradient(45% 45% at 20% 30%, rgba(124, 58, 237, 0.32), transparent 70%),
+    radial-gradient(40% 40% at 80% 15%, rgba(168, 85, 247, 0.26), transparent 70%),
+    radial-gradient(35% 35% at 55% 70%, rgba(56, 189, 248, 0.14), transparent 70%);
+  filter: blur(28px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-theme="light"] .aurora {
+  background:
+    radial-gradient(45% 45% at 20% 30%, rgba(37, 99, 235, 0.18), transparent 70%),
+    radial-gradient(40% 40% at 80% 15%, rgba(125, 211, 252, 0.28), transparent 70%);
+}
+
+.glass {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: var(--radius);
+  box-shadow: var(--glow);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 296px 1fr;
+  gap: 14px;
+  height: 100vh;
+  padding: 14px;
+}
+
+/* ------------------------------------------------------------------ сайдбар */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  padding: 16px 14px;
+  min-height: 0;
+}
+
+.brand { display: flex; align-items: center; gap: 11px; margin-bottom: 16px; }
+
+.logo {
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border-radius: 12px;
+  font-weight: 800; font-size: 19px;
+  color: #fff;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2));
+  box-shadow: 0 8px 26px -8px var(--accent);
+}
+
+.brand-name { font-weight: 700; letter-spacing: .2px; }
+.brand-sub { font-size: 11.5px; color: var(--muted); }
+
+.new-chat {
+  width: 100%;
+  padding: 11px 14px;
+  border-radius: 13px;
+  border: 1px dashed var(--stroke-strong);
+  background: var(--accent-soft);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  transition: .18s;
+}
+.new-chat:hover { background: rgba(168, 85, 247, 0.22); transform: translateY(-1px); }
+
+.side-label {
+  margin: 16px 4px 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  color: var(--muted);
+}
+
+.sessions { overflow-y: auto; min-height: 0; flex: 1; display: flex; flex-direction: column; gap: 6px; }
+
+.session {
+  padding: 9px 11px;
+  border-radius: 11px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: .15s;
+}
+.session:hover { background: var(--panel-2); color: var(--text); }
+.session.active {
+  background: var(--accent-soft);
+  border-color: var(--stroke-strong);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.todos { display: flex; flex-direction: column; gap: 5px; max-height: 168px; overflow-y: auto; }
+.todo { font-size: 12.5px; color: var(--muted); display: flex; gap: 7px; }
+.todo[data-s="done"] { color: var(--ok); text-decoration: line-through; }
+.todo[data-s="active"] { color: var(--text); }
+.todo[data-s="blocked"] { color: var(--err); }
+
+.side-foot { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--stroke); }
+.sig { font-weight: 700; font-size: 12.5px; letter-spacing: .3px;
+  background: linear-gradient(90deg, var(--accent), #38bdf8);
+  -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sig-sub { font-size: 10.5px; color: var(--muted); }
+
+/* ------------------------------------------------------------------ основное */
+.main { display: flex; flex-direction: column; gap: 12px; min-width: 0; min-height: 0; }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  flex-wrap: wrap;
+}
+
+.modes { display: flex; gap: 3px; padding: 3px; background: rgba(0,0,0,.22); border-radius: 12px; }
+[data-theme="light"] .modes { background: rgba(37,99,235,.08); }
+
+.mode {
+  padding: 6px 13px;
+  border-radius: 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: .16s;
+}
+.mode:hover { color: var(--text); }
+.mode.active { background: linear-gradient(140deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 6px 18px -8px var(--accent); }
+
+.pickers { display: flex; gap: 6px; align-items: center; }
+
+.pick {
+  height: 30px;
+  padding: 0 9px;
+  border-radius: 9px;
+  border: 1px solid var(--stroke);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 12.5px;
+  outline: none;
+}
+.pick.model { width: 190px; }
+.pick.ghost { width: 30px; cursor: pointer; }
+.pick:focus { border-color: var(--stroke-strong); }
+
+.personas { display: flex; gap: 5px; flex-wrap: wrap; flex: 1; }
+
+.chip {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: .15s;
+}
+.chip:hover { color: var(--text); border-color: var(--stroke-strong); }
+.chip.on { background: var(--accent-soft); border-color: var(--stroke-strong); color: var(--text); font-weight: 600; }
+
+.top-right { display: flex; gap: 6px; }
+.icon-btn {
+  width: 30px; height: 30px;
+  border-radius: 9px;
+  border: 1px solid var(--stroke);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+}
+.icon-btn:hover { border-color: var(--stroke-strong); }
+
+/* ------------------------------------------------------------------ поток */
+.stream {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 4px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  scroll-behavior: smooth;
+}
+
+.msg { display: flex; gap: 10px; max-width: 100%; }
+.msg .avatar {
+  flex: 0 0 28px; height: 28px; border-radius: 9px;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 700; color: #fff;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2));
+}
+.msg.user .avatar { background: linear-gradient(140deg, #334155, #0f172a); }
+[data-theme="light"] .msg.user .avatar { background: linear-gradient(140deg, #93c5fd, #2563eb); }
+
+.bubble {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  padding: 11px 14px;
+  max-width: min(860px, 100%);
+  overflow-wrap: anywhere;
+}
+.msg.user .bubble { background: var(--panel-2); }
+
+.bubble p { margin: 0 0 8px; }
+.bubble p:last-child { margin-bottom: 0; }
+.bubble code {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: rgba(168, 85, 247, 0.14);
+  padding: 1px 5px;
+  border-radius: 6px;
+}
+[data-theme="light"] .bubble code { background: rgba(37, 99, 235, 0.1); }
+
+.bubble pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+[data-theme="light"] .bubble pre { background: rgba(15, 23, 42, 0.06); }
+
+.plan-block {
+  border-left: 2px solid var(--accent);
+  padding-left: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+/* карточка инструмента */
+.tool {
+  margin: 6px 0;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: rgba(12, 9, 22, 0.5);
+  overflow: hidden;
+  max-width: min(860px, 100%);
+}
+[data-theme="light"] .tool { background: rgba(255, 255, 255, 0.75); }
+
+.tool-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 11px;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.tool-name { font-family: var(--mono); font-weight: 600; }
+.tool-args { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.tool-status { font-size: 11px; }
+.tool-status.ok { color: var(--ok); }
+.tool-status.err { color: var(--err); }
+.tool-body {
+  border-top: 1px solid var(--stroke);
+  padding: 9px 11px;
+  font-family: var(--mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 340px;
+  overflow: auto;
+  color: var(--muted);
+}
+.tool.collapsed .tool-body { display: none; }
+
+.pill {
+  display: inline-block;
+  font-size: 10.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke);
+  color: var(--muted);
+}
+.pill.warn { color: var(--warn); border-color: rgba(255, 180, 84, 0.4); }
+
+/* ------------------------------------------------------------------ ввод */
+.composer { padding: 10px 12px 8px; }
+.composer-inner { display: flex; gap: 9px; align-items: flex-end; }
+
+#input {
+  flex: 1;
+  resize: none;
+  min-height: 42px;
+  max-height: 190px;
+  padding: 11px 13px;
+  border-radius: 13px;
+  border: 1px solid var(--stroke);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--text);
+  font: inherit;
+  outline: none;
+}
+[data-theme="light"] #input { background: rgba(255, 255, 255, 0.85); }
+#input:focus { border-color: var(--stroke-strong); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.send {
+  height: 42px;
+  padding: 0 20px;
+  border-radius: 13px;
+  border: 0;
+  background: linear-gradient(140deg, var(--accent), var(--accent-2));
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 10px 26px -12px var(--accent);
+}
+.send:disabled { opacity: .5; cursor: default; }
+
+.hint { margin-top: 7px; font-size: 11px; color: var(--muted); }
+
+/* ------------------------------------------------------------------ модалка */
+.modal {
+  position: fixed; inset: 0;
+  background: rgba(4, 3, 9, 0.62);
+  backdrop-filter: blur(6px);
+  display: grid; place-items: center;
+  z-index: 50;
+  padding: 20px;
+}
+.modal[hidden] { display: none; }
+.modal-card { width: min(560px, 100%); padding: 18px; }
+.modal-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.modal-tool { font-family: var(--mono); font-weight: 700; }
+.modal-args {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--stroke);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+[data-theme="light"] .modal-args { background: rgba(15, 23, 42, 0.05); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.btn {
+  padding: 9px 18px;
+  border-radius: 11px;
+  border: 1px solid var(--stroke);
+  background: var(--panel-2);
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn.allow { background: linear-gradient(140deg, var(--ok), #1f9a6b); border: 0; color: #06120c; }
+.btn.deny { color: var(--err); border-color: rgba(255, 107, 129, 0.35); }
+
+.empty {
+  margin: auto;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13.5px;
+  max-width: 460px;
+  line-height: 1.7;
+}
+.empty b { color: var(--text); }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.28); border-radius: 9px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ------------------------------------------------------------------ вкладки и обучение */
+.tabs { display: flex; gap: 3px; padding: 3px; background: rgba(0,0,0,.22); border-radius: 12px; }
+[data-theme="light"] .tabs { background: rgba(37,99,235,.08); }
+.tab {
+  padding: 6px 14px; border-radius: 9px; border: 0; background: transparent;
+  color: var(--muted); font-weight: 600; font-size: 12.5px; cursor: pointer;
+}
+.tab:hover { color: var(--text); }
+.tab.active { background: var(--accent-soft); color: var(--text); }
+.spacer { flex: 1; }
+
+.train { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding-right: 4px; }
+.train[hidden] { display: none; }
+.stream[hidden] { display: none; }
+
+.train-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 15px; }
+.train-title { font-weight: 700; font-size: 15px; }
+.train-actions { display: flex; gap: 8px; }
+.small { font-size: 11.5px; }
+.mut { color: var(--muted); }
+
+.params { display: flex; flex-wrap: wrap; gap: 10px; padding: 11px 14px; }
+.params label { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); }
+.pick.num { width: 78px; }
+.params .pick { height: 28px; }
+
+.runbox { padding: 13px 15px; }
+.runbox .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.bar { height: 8px; border-radius: 99px; background: rgba(0,0,0,.35); overflow: hidden; border: 1px solid var(--stroke); }
+[data-theme="light"] .bar { background: rgba(37,99,235,.1); }
+.bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--accent), var(--ok)); transition: width .4s; }
+
+.cats { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 9px; }
+.cat {
+  border: 1px solid var(--stroke); border-radius: 13px; padding: 10px 12px;
+  background: var(--panel); cursor: pointer; transition: .15s; position: relative;
+}
+.cat:hover { border-color: var(--stroke-strong); transform: translateY(-1px); }
+.cat.on { background: var(--accent-soft); border-color: var(--stroke-strong); }
+.cat-head { display: flex; align-items: center; gap: 7px; }
+.cat-name { font-weight: 600; font-size: 13px; }
+.cat-group { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); }
+.cat-hint { font-size: 11px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+.cat-stat { margin-top: 7px; font-size: 11px; font-family: var(--mono); color: var(--ok); }
+.cat-stat.empty { color: var(--muted); }
+.cat .plus {
+  position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 7px;
+  border: 1px solid var(--stroke); background: var(--panel-2); color: var(--text);
+  font-size: 13px; line-height: 1; cursor: pointer;
+}
+
+.adder { padding: 12px 14px; }
+.adder-head { display: flex; flex-direction: column; gap: 2px; margin-bottom: 9px; }
+.adder-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.adder-row .pick { height: 30px; }
+#addCat { width: 170px; }
+#addName { flex: 1; }
+#addText {
+  width: 100%; resize: vertical; min-height: 84px; border-radius: 11px; padding: 10px 12px;
+  border: 1px solid var(--stroke); background: rgba(0,0,0,.28); color: var(--text);
+  font: inherit; font-size: 12.5px; outline: none;
+}
+[data-theme="light"] #addText { background: rgba(255,255,255,.85); }
+#addText:focus { border-color: var(--stroke-strong); }
+.btn.ghost { background: transparent; }
+
+/* третья тема: графит + мята, нейтральная и спокойная */
+[data-theme="graphite"] {
+  --bg: #0b0f10;
+  --bg-2: #101718;
+  --panel: rgba(22, 30, 31, 0.62);
+  --panel-2: rgba(28, 38, 39, 0.72);
+  --stroke: rgba(148, 233, 200, 0.16);
+  --stroke-strong: rgba(74, 222, 128, 0.42);
+  --text: #e8f1ee;
+  --muted: #8ea39d;
+  --accent: #46d39a;
+  --accent-2: #22b07d;
+  --accent-soft: rgba(70, 211, 154, 0.14);
+  --ok: #46d39a;
+  --warn: #e5b567;
+  --err: #ef6f7b;
+  --glow: 0 0 0 1px rgba(70, 211, 154, 0.2), 0 18px 60px -24px rgba(34, 176, 125, 0.5);
+}
+
+[data-theme="graphite"] .aurora {
+  background:
+    radial-gradient(45% 45% at 18% 28%, rgba(34, 176, 125, 0.22), transparent 70%),
+    radial-gradient(40% 40% at 82% 12%, rgba(70, 211, 154, 0.18), transparent 70%),
+    radial-gradient(35% 35% at 55% 72%, rgba(148, 233, 200, 0.10), transparent 70%);
+}
+
+[data-theme="graphite"] .modes { background: rgba(70, 211, 154, 0.07); }
+[data-theme="graphite"] .msg.user .avatar { background: linear-gradient(140deg, #7ff0c0, #22b07d); }
+[data-theme="graphite"] .bubble code { background: rgba(70, 211, 154, 0.10); }
+[data-theme="graphite"] .bubble pre { background: rgba(6, 20, 16, 0.72); }
+[data-theme="graphite"] .tool { background: rgba(22, 32, 30, 0.78); }
+[data-theme="graphite"] #input { background: rgba(16, 26, 24, 0.86); }
+
+/* общие мелочи для всех тем: скроллбар и выделение */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--accent-soft); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
+::-webkit-scrollbar-thumb:hover { background: var(--stroke-strong); background-clip: content-box; }
+::selection { background: var(--accent-soft); color: var(--text); }
+
+</style>
+</head>
+<body>
+<div class="aurora"></div>
+
+<div class="shell">
+  <aside class="sidebar glass">
+    <div class="brand">
+      <div class="logo">N</div>
+      <div>
+        <div class="brand-name">Nexus-AI-HARNESS</div>
+        <div class="brand-sub" data-i18n="brandSub">an agent with access to the PC</div>
+      </div>
+    </div>
+
+    <button class="new-chat" id="newSession" data-i18n="newSession">＋ New chat</button>
+
+    <div class="side-label" data-i18n="sessions">Sessions</div>
+    <div class="sessions" id="sessions"></div>
+
+    <div class="side-label" id="todoLabel" data-i18n="plan" hidden="">Plan</div>
+    <div class="todos" id="todos"></div>
+
+    <div class="side-foot">
+      <div class="sig">Nexus × АутSquad</div>
+      <div class="sig-sub" id="versionLabel" data-i18n="localDaemon">local daemon</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar glass">
+      <div class="modes" id="modes"></div>
+
+      <div class="pickers">
+        <select id="provider" class="pick" data-i18n-title="providerTitle" title="Provider"></select>
+        <input id="model" class="pick model" list="modelList" data-i18n-placeholder="modelPlaceholder" placeholder="model">
+        <datalist id="modelList"></datalist>
+        <button class="pick ghost" id="reloadModels" data-i18n-title="reloadModelsTitle" title="Refresh model list">⟳</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" data-view="chat" data-i18n="tabChat">Chat</button>
+        <button class="tab" data-view="train" data-i18n="tabTrain">Training</button>
+      </div>
+      <div class="spacer"></div>
+
+      <div class="top-right">
+        <button class="icon-btn" id="langBtn" title="Interface language">RU</button>
+        <button class="icon-btn" id="stopBtn" data-i18n-title="stopTitle" title="Stop" hidden="">■</button>
+        <button class="icon-btn" id="updateBtn" data-i18n-title="updateTitle" title="Update from git">⟳</button>
+        <button class="icon-btn" id="themeBtn" data-i18n-title="themeTitle" title="Theme">◈</button>
+      </div>
+    </header>
+
+    <section class="stream" id="stream"><div class="empty"><b>Nexus-Harness</b> is ready.<br>Describe a task — the agent will read files, open the browser, click or run a command.<br>Pick a mode in the top right: Plan · Act · Full.</div></section>
+
+    <section class="train" id="trainView" hidden="">
+      <div class="train-head glass">
+        <div>
+          <div class="train-title" data-i18n="trainMaterials">Training materials</div>
+          <div class="mut small" id="trainSummary" data-i18n="trainNoCats">no sections selected</div>
+        </div>
+        <div class="train-actions">
+          <button class="btn ghost" id="seedBtn" data-i18n="seedBtn" data-i18n-title="seedTitle" title="Fill sections with our own materials">Baseline set</button>
+          <button class="btn ghost" id="composeBtn" data-i18n="composeBtn">Build dataset</button>
+          <button class="btn ghost" id="stopTrainBtn" data-i18n="stopBtnSmall" hidden="">Stop</button>
+          <button class="btn allow" id="startTrainBtn" data-i18n="startTrain">Start training</button>
+        </div>
+      </div>
+
+      <div class="params glass">
+        <label><span data-i18n="base">Base</span> <input class="pick" id="pBase" value="unsloth/Qwen3.5-4B"></label>
+        <label><span data-i18n="epochs">Epochs</span> <input class="pick num" id="pEpochs" type="number" value="1" min="1" max="5"></label>
+        <label>seq <input class="pick num" id="pSeq" type="number" value="768" step="128"></label>
+        <label>lr <input class="pick num" id="pLr" type="number" value="0.0002" step="0.00005"></label>
+        <label>r <input class="pick num" id="pR" type="number" value="16" min="4" max="64"></label>
+        <label>ga <input class="pick num" id="pGa" type="number" value="8" min="1" max="32"></label>
+      </div>
+
+      <div class="runbox glass" id="runBox" hidden="">
+        <div class="row"><b id="runName">—</b><span class="mut" id="runEta"></span></div>
+        <div class="bar"><i id="runBar"></i></div>
+        <div class="row mut small"><span id="runSteps" data-i18n="stepZero">step 0</span><span id="runLoss" data-i18n="lossDash">loss —</span></div>
+      </div>
+
+      <div class="cats" id="cats"></div>
+
+      <div class="adder glass">
+        <div class="adder-head">
+          <b data-i18n="addMaterial">Add material</b>
+          <span class="mut small" data-i18n="addMaterialHint">JSONL with messages (see CONVENTIONS.md), or plain text — saved as a material card</span>
+        </div>
+        <div class="adder-row">
+          <select class="pick" id="addCat"></select>
+          <input class="pick" id="addName" data-i18n-placeholder="addNamePlaceholder" placeholder="name (for example: fractions, grade 6)">
+          <button class="pick ghost" id="fileBtn" data-i18n-title="uploadTitle" title="Upload files">📎</button>
+          <input type="file" id="fileInput" multiple="" accept=".jsonl,.json,.txt,.md" hidden="">
+        </div>
+        <textarea id="addText" rows="4" data-i18n-placeholder="addTextPlaceholder" placeholder="Paste material text or JSONL…"></textarea>
+        <div class="adder-row">
+          <select class="pick" id="addFormat">
+            <option value="text" data-i18n="fmtText">text</option>
+            <option value="jsonl">JSONL</option>
+          </select>
+          <div class="spacer"></div>
+          <button class="btn allow" id="addBtn" data-i18n="addBtn">Add</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="composer glass" id="composerEl">
+      <div class="composer-inner">
+        <textarea id="input" rows="1" data-i18n-placeholder="inputPlaceholder" placeholder="Task for Nexus…  Enter — send, Shift+Enter — new line"></textarea>
+        <button id="send" class="send" data-i18n="send">Send</button>
+      </div>
+      <div class="hint" id="hint" data-i18n="hintPlan">Plan: you approve every action · Act: no questions except mouse · Full: full access</div>
+    </div>
+  </main>
+</div>
+
+<div class="modal" id="modal" hidden="">
+  <div class="modal-card glass">
+    <div class="modal-head">
+      <span class="pill warn" data-i18n="approval">Approval required</span>
+      <span class="modal-tool" id="modalTool"></span>
+    </div>
+    <pre class="modal-args" id="modalArgs"></pre>
+    <div class="modal-actions">
+      <button class="btn deny" id="deny" data-i18n="deny">Deny</button>
+      <button class="btn allow" id="allow" data-i18n="allow">Allow</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+</body></html>

@@ -36,7 +36,8 @@ class App:
         self.mcp.register(tools)
         self.runner = Runner(self.store, self.bus, self.hub, self.hooks)
         self._lock = threading.Lock()
-        self.update_state: dict[str, Any] = {"ok": False, "reason": "проверка ещё не шла"}
+        self.update_state: dict[str, Any] = {"ok": False, "code": "ev.updatePending", "vars": {},
+                                             "reason": "проверка ещё не шла"}
         threading.Thread(target=self._update_worker, daemon=True, name="nexus-update").start()
 
     def _update_worker(self) -> None:
@@ -149,7 +150,7 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[:2] == ["api", "sessions"]:
             session = APP.store.get(parts[2])
             if session is None:
-                return self._json({"error": "нет сессии"}, 404)
+                return self._json({"error": "нет сессии", "code": "ev.noSession", "vars": {}}, 404)
             session["running"] = APP.runner.is_running(parts[2])
             return self._json(session)
 
@@ -171,7 +172,7 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/sessions":
             body = self._body()
-            session = APP.store.create(body.get("title") or "Новая сессия")
+            session = APP.store.create(str(body.get("title") or ""))
             return self._json(session)
 
         if path == "/api/training/add":
@@ -186,13 +187,15 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     result = {"written": training.add_text(category, name, text)}
             except ValueError as exc:
-                return self._json({"error": str(exc)}, 400)
+                return self._json({"error": str(exc), "code": "ev.addFailed",
+                                   "vars": {"e": str(exc)}}, 400)
             return self._json({**result, "stats": training.stats()})
 
         if path == "/api/training/seed":
             script = config.ROOT / "packaging" / "seed_training.py"
             if not script.exists():
-                return self._json({"error": "нет packaging/seed_training.py"}, 404)
+                return self._json({"error": "нет packaging/seed_training.py",
+                                   "code": "ev.noSeedScript", "vars": {}}, 404)
             done = subprocess.run([sys.executable, str(script)], cwd=str(config.ROOT),
                                   capture_output=True, text=True, encoding="utf-8",
                                   errors="replace", timeout=600)

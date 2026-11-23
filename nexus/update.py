@@ -75,6 +75,7 @@ def _frozen_status(force: bool = False) -> dict[str, Any]:
         }
     except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
         result = {"ok": False, "mode": "release", "reason": f"нет связи с GitHub: {exc}",
+                  "code": "ev.updateOffline", "vars": {"e": str(exc)},
                   "current": VERSION, "checked": int(time.time())}
     STAMP.parent.mkdir(parents=True, exist_ok=True)
     STAMP.write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
@@ -85,10 +86,11 @@ def status() -> dict[str, Any]:
     if FROZEN:
         return _frozen_status()
     if not available():
-        return {"ok": False, "reason": "это не git-копия"}
+        return {"ok": False, "reason": "это не git-копия", "code": "ev.updateNotGit", "vars": {}}
     code, branch = _git("rev-parse", "--abbrev-ref", "HEAD")
     if code != 0:
-        return {"ok": False, "reason": branch[:200]}
+        return {"ok": False, "reason": branch[:200], "code": "ev.updateGitError",
+                "vars": {"e": branch[:200]}}
     _, remote = _git("remote", "get-url", "origin")
     _, local = _git("rev-parse", "--short", "HEAD")
     _, when = _git("log", "-1", "--format=%cI")
@@ -113,7 +115,7 @@ def check(force: bool = False) -> dict[str, Any]:
     if FROZEN:
         return _frozen_status(force=force)
     if not available():
-        return {"ok": False, "reason": "это не git-копия"}
+        return {"ok": False, "reason": "это не git-копия", "code": "ev.updateNotGit", "vars": {}}
     fresh = STAMP.exists() and time.time() - STAMP.stat().st_mtime < CHECK_EVERY
     if not force and fresh:
         return status()
@@ -128,13 +130,13 @@ def apply() -> dict[str, Any]:
     if FROZEN:
         return _apply_release()
     if not available():
-        return {"ok": False, "reason": "это не git-копия"}
+        return {"ok": False, "reason": "это не git-копия", "code": "ev.updateNotGit", "vars": {}}
     before = status()
     if not before.get("remote"):
-        return {"ok": False, "reason": "не задан origin"}
+        return {"ok": False, "reason": "не задан origin", "code": "ev.updateNoRemote", "vars": {}}
     if before.get("dirty"):
         return {"ok": False, "reason": "есть локальные правки, обновление отложено",
-                "dirty": True}
+                "code": "ev.updateDirty", "vars": {}, "dirty": True}
     code, output = _git("pull", "--ff-only", timeout=180)
     after = status()
     return {"ok": code == 0, "output": output[-1500:], "before": before, "after": after}
@@ -154,14 +156,18 @@ def _apply_release() -> dict[str, Any]:
     """Портабельная сборка: качает новый exe рядом и подменяет его при перезапуске."""
     state = _frozen_status(force=True)
     if not state.get("ok"):
-        return {"ok": False, "reason": state.get("reason", "нет данных о релизе")}
+        return {"ok": False, "reason": state.get("reason", "нет данных о релизе"),
+                "code": state.get("code") or "ev.updateNoRelease",
+                "vars": state.get("vars") or {}}
     if not state.get("behind"):
-        return {"ok": True, "output": f"уже последняя версия ({VERSION})"}
+        return {"ok": True, "output": f"уже последняя версия ({VERSION})",
+                "code": "ev.updateLatest", "vars": {"v": VERSION}}
     exe = Path(sys_executable())
     asset = next((a for a in state.get("assets", [])
                   if a["name"] == ASSETS["portable"]), None)
     if not asset:
-        return {"ok": False, "reason": "в релизе нет файла Nexus-AI-HARNESS.exe"}
+        return {"ok": False, "reason": "в релизе нет файла Nexus-AI-HARNESS.exe",
+                "code": "ev.updateNoAsset", "vars": {}}
     target = exe.with_suffix(".exe.new")
     try:
         request = urllib.request.Request(asset["url"], headers={
@@ -173,8 +179,10 @@ def _apply_release() -> dict[str, Any]:
                     break
                 fh.write(chunk)
     except (urllib.error.URLError, OSError) as exc:
-        return {"ok": False, "reason": f"не скачалось: {exc}"}
+        return {"ok": False, "reason": f"не скачалось: {exc}",
+                "code": "ev.updateDownloadFailed", "vars": {"e": str(exc)}}
     return {"ok": True, "output": f"скачана версия {state.get('latest')} — применится при следующем запуске",
+            "code": "ev.updateDownloaded", "vars": {"v": state.get("latest")},
             "pending": str(target)}
 
 

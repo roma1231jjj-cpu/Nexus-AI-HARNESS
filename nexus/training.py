@@ -257,11 +257,12 @@ def _alive(pid: int) -> bool:
 def start(params: dict[str, Any]) -> dict[str, Any]:
     ensure_dirs()
     if status().get("running"):
-        return {"error": "обучение уже идёт"}
+        return {"error": "обучение уже идёт", "code": "ev.trainRunning", "vars": {}}
     categories = params.get("categories") or [c["id"] for c in CATEGORIES]
     counts = compose(categories, float(params.get("val_ratio", 0.03)))
     if counts["train"] < 8:
-        return {"error": f"мало материала: {counts['train']} примеров (нужно минимум 8)"}
+        return {"error": f"мало материала: {counts['train']} примеров (нужно минимум 8)",
+                "code": "ev.trainTooFew", "vars": {"n": counts["train"]}}
 
     name = params.get("run_name") or f"nexus-{time.strftime('%Y%m%d-%H%M')}"
     cmd = [

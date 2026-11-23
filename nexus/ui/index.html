@@ -30,7 +30,7 @@
 
     <div class="side-foot">
       <div class="sig">Nexus × АутSquad</div>
-      <div class="sig-sub" id="versionLabel" data-i18n="localDaemon">локальный демон</div>
+      <div class="sig-sub" id="versionLabel">локальный демон</div>
     </div>
   </aside>
 
@@ -42,7 +42,7 @@
         <select id="provider" class="pick" data-i18n-title="providerTitle" title="Провайдер"></select>
         <input id="model" class="pick model" list="modelList" data-i18n-placeholder="modelPlaceholder" placeholder="модель">
         <datalist id="modelList"></datalist>
-        <button class="pick ghost" id="reloadModels" data-i18n-title="reloadModelsTitle" title="Обновить список моделей">⟳</button>
+        <button class="pick ghost" id="reloadModels" data-i18n-title="reloadModelsTitle" data-i18n-label="reloadModelsTitle" title="Обновить список моделей">↻</button>
       </div>
 
       <div class="tabs">
@@ -52,12 +52,14 @@
       <div class="spacer"></div>
 
       <div class="top-right">
-        <button class="icon-btn" id="langBtn" title="Язык интерфейса">EN</button>
-        <button class="icon-btn" id="stopBtn" data-i18n-title="stopTitle" title="Остановить" hidden>■</button>
-        <button class="icon-btn" id="updateBtn" data-i18n-title="updateTitle" title="Обновление из git">⟳</button>
-        <button class="icon-btn" id="themeBtn" data-i18n-title="themeTitle" title="Тема">◐</button>
+        <button class="icon-btn" id="langBtn" data-i18n-title="langTitle" data-i18n-label="langTitle" title="Язык интерфейса">EN</button>
+        <button class="icon-btn" id="stopBtn" data-i18n-title="stopTitle" data-i18n-label="stopTitle" title="Остановить" hidden>■</button>
+        <button class="icon-btn" id="updateBtn" data-i18n-title="updateTitle" data-i18n-label="updateTitle" title="Обновление из git">⟳</button>
+        <button class="icon-btn" id="themeBtn" data-i18n-title="themeTitle" data-i18n-label="themeTitle" title="Тема">◐</button>
       </div>
     </header>
+
+    <div class="banner" id="banner" role="status" aria-live="polite" hidden></div>
 
     <section class="stream" id="stream"></section>
 
@@ -78,10 +80,10 @@
       <div class="params glass">
         <label><span data-i18n="base">База</span> <input class="pick" id="pBase" value="unsloth/Qwen3.5-4B"></label>
         <label><span data-i18n="epochs">Эпох</span> <input class="pick num" id="pEpochs" type="number" value="1" min="1" max="5"></label>
-        <label>seq <input class="pick num" id="pSeq" type="number" value="768" step="128"></label>
-        <label>lr <input class="pick num" id="pLr" type="number" value="0.0002" step="0.00005"></label>
-        <label>r <input class="pick num" id="pR" type="number" value="16" min="4" max="64"></label>
-        <label>ga <input class="pick num" id="pGa" type="number" value="8" min="1" max="32"></label>
+        <label>seq <input class="pick num" id="pSeq" type="number" value="768" step="128" data-i18n-title="titleSeq"></label>
+        <label>lr <input class="pick num" id="pLr" type="number" value="0.0002" step="0.00005" data-i18n-title="titleLr"></label>
+        <label>r <input class="pick num" id="pR" type="number" value="16" min="4" max="64" data-i18n-title="titleR"></label>
+        <label>ga <input class="pick num" id="pGa" type="number" value="8" min="1" max="32" data-i18n-title="titleGa"></label>
       </div>
 
       <div class="runbox glass" id="runBox" hidden>
@@ -100,7 +102,7 @@
         <div class="adder-row">
           <select class="pick" id="addCat"></select>
           <input class="pick" id="addName" data-i18n-placeholder="addNamePlaceholder" placeholder="название (например: дроби 6 класс)">
-          <button class="pick ghost" id="fileBtn" data-i18n-title="uploadTitle" title="Загрузить файлы">📎</button>
+          <button class="pick ghost" id="fileBtn" data-i18n-title="uploadTitle" data-i18n-label="uploadTitle" title="Загрузить файлы">📎</button>
           <input type="file" id="fileInput" multiple accept=".jsonl,.json,.txt,.md" hidden>
         </div>
         <textarea id="addText" rows="4" data-i18n-placeholder="addTextPlaceholder" placeholder="Вставь текст материала или JSONL…"></textarea>
@@ -126,9 +128,9 @@
 </div>
 
 <div class="modal" id="modal" hidden>
-  <div class="modal-card glass">
+  <div class="modal-card glass" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <div class="modal-head">
-      <span class="pill warn" data-i18n="approval">Требуется разрешение</span>
+      <span class="pill warn" id="modalTitle" data-i18n="approval">Требуется разрешение</span>
       <span class="modal-tool" id="modalTool"></span>
     </div>
     <pre class="modal-args" id="modalArgs"></pre>

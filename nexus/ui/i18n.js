@@ -79,6 +79,45 @@ const I18N = {
     updateDone: "Обновлено. Перезапусти демон, чтобы применить код.",
     errorPrefix: "Ошибка: {e}",
     versionSuffix: "v{v} · локальный демон",
+    needText: "нужен текст материала — поле пустое",
+    needModel: "модель не выбрана: укажи её в шапке",
+    actionFailed: "не получилось: {e}",
+    approveFailed: "подтверждение не ушло: {e}",
+    filesAdded: "файлов принято: {n}{bad}{failed}",
+    filesFailedPart: " · не принято {n}",
+    emptyCats: "разделы не найдены — нажми «Базовый минимум»",
+    composeDone: "train {train} / val {val}",
+    composeFailed: "датасет не собрался: {e}",
+    seedFailed: "не заполнилось: {e}",
+    trainStartFailed: "обучение не стартовало: {e}",
+    pollFailed: "статус обучения не отвечает: {e}",
+    streamLost: "поток прерван, переподключаюсь…",
+    todosMore: "+{n} пунктов в плане",
+    titleSeq: "seq: длина окна токенов",
+    titleLr: "lr: скорость обучения",
+    titleR: "r: ранг LoRA",
+    titleGa: "ga: накопление градиента",
+    "ev.stopped": "остановлено пользователем",
+    "ev.denied": "пользователь отклонил ({decision})",
+    "ev.hookBlocked": "заблокировано хуком: {reason}",
+    "ev.stepLimit": "лимит шагов ({max_steps}) — задача приостановлена",
+    "ev.turnFailed": "сбой оборота: {e}",
+    "ev.trainRunning": "обучение уже идёт",
+    "ev.trainTooFew": "мало материала: {n} примеров (нужно минимум 8)",
+    "ev.addFailed": "материал не принят: {e}",
+    "ev.noSession": "нет такой сессии",
+    "ev.noSeedScript": "в сборке нет packaging/seed_training.py",
+    "ev.updateNotGit": "это не git-копия — обновление только вручную",
+    "ev.updateGitError": "git: {e}",
+    "ev.updateNoRemote": "не задан origin",
+    "ev.updateDirty": "есть локальные правки — обновление отложено",
+    "ev.updateOffline": "нет связи с GitHub: {e}",
+    "ev.updateNoRelease": "нет данных о релизе",
+    "ev.updateLatest": "уже последняя версия ({v})",
+    "ev.updateNoAsset": "в релизе нет файла Nexus-AI-HARNESS.exe",
+    "ev.updateDownloadFailed": "не скачалось: {e}",
+    "ev.updateDownloaded": "скачана версия {v} — применится при следующем запуске",
+    "ev.updatePending": "проверка обновлений ещё не шла",
   },
   en: {
     brandSub: "an agent with access to the PC",
@@ -158,6 +197,45 @@ const I18N = {
     updateDone: "Updated. Restart the daemon to apply the code.",
     errorPrefix: "Error: {e}",
     versionSuffix: "v{v} · local daemon",
+    needText: "material text is required — the field is empty",
+    needModel: "no model selected: pick one in the top bar",
+    actionFailed: "failed: {e}",
+    approveFailed: "approval was not sent: {e}",
+    filesAdded: "files accepted: {n}{bad}{failed}",
+    filesFailedPart: " · rejected {n}",
+    emptyCats: "no sections found — press “Baseline set”",
+    composeDone: "train {train} / val {val}",
+    composeFailed: "dataset was not built: {e}",
+    seedFailed: "nothing was filled: {e}",
+    trainStartFailed: "training did not start: {e}",
+    pollFailed: "training status is not responding: {e}",
+    streamLost: "stream interrupted, reconnecting…",
+    todosMore: "+{n} more in the plan",
+    titleSeq: "seq: token window length",
+    titleLr: "lr: learning rate",
+    titleR: "r: LoRA rank",
+    titleGa: "ga: gradient accumulation",
+    "ev.stopped": "stopped by user",
+    "ev.denied": "denied by user ({decision})",
+    "ev.hookBlocked": "blocked by hook: {reason}",
+    "ev.stepLimit": "step limit reached ({max_steps}) — task paused",
+    "ev.turnFailed": "turn failed: {e}",
+    "ev.trainRunning": "training is already running",
+    "ev.trainTooFew": "not enough material: {n} examples (8 minimum)",
+    "ev.addFailed": "material was not accepted: {e}",
+    "ev.noSession": "no such session",
+    "ev.noSeedScript": "this build has no packaging/seed_training.py",
+    "ev.updateNotGit": "this is not a git checkout — update manually",
+    "ev.updateGitError": "git: {e}",
+    "ev.updateNoRemote": "origin is not set",
+    "ev.updateDirty": "local changes present — update postponed",
+    "ev.updateOffline": "no connection to GitHub: {e}",
+    "ev.updateNoRelease": "no release data",
+    "ev.updateLatest": "already the latest version ({v})",
+    "ev.updateNoAsset": "the release has no Nexus-AI-HARNESS.exe",
+    "ev.updateDownloadFailed": "download failed: {e}",
+    "ev.updateDownloaded": "version {v} downloaded — applied on next launch",
+    "ev.updatePending": "the update check has not run yet",
   },
 };
 
@@ -227,6 +305,21 @@ function catText(cat) {
   return { group: cat.group, name: cat.name, hint: cat.hint };
 }
 
+const PROVIDERS_EN = {
+  mock: "Mock (no model needed)",
+  ollama: "Ollama (local)",
+  deepseek: "DeepSeek",
+  openrouter: "OpenRouter",
+  local_hf: "Local server (vLLM / LM Studio)",
+  llamacpp: "Local Ada 4B (llama.cpp)",
+};
+
+function providerLabel(id, conf) {
+  const label = conf && conf.label ? conf.label : id;
+  if (nexusLang() === "en" && PROVIDERS_EN[id]) return PROVIDERS_EN[id];
+  return label;
+}
+
 function applyStatic() {
   document.documentElement.lang = nexusLang();
   document.querySelectorAll("[data-i18n]").forEach((el) => {
@@ -237,6 +330,9 @@ function applyStatic() {
   });
   document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
     el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  document.querySelectorAll("[data-i18n-label]").forEach((el) => {
+    el.setAttribute("aria-label", t(el.dataset.i18nLabel));
   });
   const btn = document.getElementById("langBtn");
   if (btn) {

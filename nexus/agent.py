@@ -134,7 +134,8 @@ class Runner:
 
             for step in range(max_steps):
                 if self.bus.stop_signal(session_id).is_set():
-                    self.bus.emit(session_id, {"type": "error", "text": "остановлено пользователем"})
+                    self.bus.emit(session_id, {"type": "error", "code": "ev.stopped", "vars": {},
+                                               "text": "остановлено пользователем"})
                     break
 
                 self.bus.emit(session_id, {"type": "status", "state": "thinking"})
@@ -204,8 +205,9 @@ class Runner:
                         session["messages"].pop()
                         if decision != "allow":
                             output, ok = f"пользователь отклонил ({decision})", False
-                            result = protocol.tool_result_part(call["id"], name, output, ok=False,
-                                                               meta={"denied": True})
+                            result = protocol.tool_result_part(
+                                call["id"], name, output, ok=False, meta={"denied": True},
+                                code="ev.denied", vars={"decision": decision})
                             session["messages"].append(protocol.message("tool", [result]))
                             self.store.save(session)
                             self.bus.emit(session_id, {"type": "tool_result", "part": result})
@@ -216,7 +218,8 @@ class Runner:
                         if not allowed:
                             blocked = protocol.tool_result_part(
                                 call["id"], name, f"заблокировано хуком: {reason}", ok=False,
-                                meta={"hook": True})
+                                meta={"hook": True}, code="ev.hookBlocked",
+                                vars={"reason": reason})
                             session["messages"].append(protocol.message("tool", [blocked]))
                             self.store.save(session)
                             self.bus.emit(session_id, {"type": "tool_result", "part": blocked})
@@ -239,12 +242,15 @@ class Runner:
                 if self.bus.stop_signal(session_id).is_set():
                     break
             else:
-                self.bus.emit(session_id, {"type": "error",
+                self.bus.emit(session_id, {"type": "error", "code": "ev.stepLimit",
+                                           "vars": {"max_steps": max_steps},
                                            "text": f"лимит шагов ({max_steps}) — задача приостановлена"})
 
             self.store.save(session)
         except Exception as exc:  # noqa: BLE001
-            self.bus.emit(session_id, {"type": "error", "text": f"сбой оборота: {exc}"})
+            self.bus.emit(session_id, {"type": "error", "code": "ev.turnFailed",
+                                       "vars": {"e": str(exc)},
+                                       "text": f"сбой оборота: {exc}"})
         finally:
             if self.hooks:
                 self.hooks.fire("agent_end", session=session_id)

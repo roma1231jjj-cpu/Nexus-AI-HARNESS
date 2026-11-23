@@ -33,8 +33,9 @@ def tool_call_part(call_id: str, name: str, args: dict[str, Any]) -> dict[str, A
 
 
 def tool_result_part(call_id: str, name: str, output: str, *, ok: bool = True,
-                     meta: dict[str, Any] | None = None) -> dict[str, Any]:
-    return {
+                     meta: dict[str, Any] | None = None, code: str = "",
+                     vars: dict[str, Any] | None = None) -> dict[str, Any]:
+    part = {
         "id": nid("prt_"),
         "type": "tool_result",
         "call_id": call_id,
@@ -44,6 +45,10 @@ def tool_result_part(call_id: str, name: str, output: str, *, ok: bool = True,
         "meta": meta or {},
         "time": now(),
     }
+    if code:
+        part["code"] = code
+        part["vars"] = vars or {}
+    return part
 
 
 def approval_part(call_id: str, name: str, args: dict[str, Any]) -> dict[str, Any]:
@@ -51,8 +56,12 @@ def approval_part(call_id: str, name: str, args: dict[str, Any]) -> dict[str, An
             "input": args, "time": now()}
 
 
-def error_part(text: str) -> dict[str, Any]:
-    return {"id": nid("prt_"), "type": "error", "text": text, "time": now()}
+def error_part(text: str, *, code: str = "", vars: dict[str, Any] | None = None) -> dict[str, Any]:
+    part = {"id": nid("prt_"), "type": "error", "text": text, "time": now()}
+    if code:
+        part["code"] = code
+        part["vars"] = vars or {}
+    return part
 
 
 def message(role: str, parts: list[dict[str, Any]] | None = None,
@@ -66,10 +75,11 @@ def message(role: str, parts: list[dict[str, Any]] | None = None,
     }
 
 
-def new_session(title: str = "Новая сессия") -> dict[str, Any]:
+def new_session(title: str = "Новая сессия", *, auto_title: bool = True) -> dict[str, Any]:
     return {
         "id": nid("ses_"),
         "title": title,
+        "auto_title": auto_title,
         "created": now(),
         "updated": now(),
         "mode": "plan",
