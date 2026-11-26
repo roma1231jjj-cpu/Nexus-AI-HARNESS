@@ -66,8 +66,8 @@ Three builds, all with self-update:
 | Build | File | For whom |
 |---|---|---|
 | **Portable (single exe)** | `Nexus-AI-HARNESS.exe` | run it and work, data lives next to the file |
-| **Portable archive** | `Nexus-AI-HARNESS-1.1.0-portable.zip` | exe + README + LICENSE, unpack anywhere |
-| **Installer** | `Nexus-AI-HARNESS-Setup-1.1.0.exe` | Start menu and desktop shortcuts, uninstaller, no admin rights |
+| **Portable archive** | `Nexus-AI-HARNESS-1.1.1-portable.zip` | exe + README + LICENSE, unpack anywhere |
+| **Installer** | `Nexus-AI-HARNESS-Setup-1.1.1.exe` | Start menu and desktop shortcuts, uninstaller, no admin rights |
 
 Ready files: [releases](https://github.com/roma1231jjj-cpu/Nexus-AI-HARNESS/releases).
 
@@ -79,8 +79,8 @@ python packaging/build.py --clean
 
 ```
 dist/portable/Nexus-AI-HARNESS.exe
-dist/archive/Nexus-AI-HARNESS-1.1.0-portable.zip
-dist/setup/Nexus-AI-HARNESS-Setup-1.1.0.exe
+dist/archive/Nexus-AI-HARNESS-1.1.1-portable.zip
+dist/setup/Nexus-AI-HARNESS-Setup-1.1.1.exe
 build/            PyInstaller intermediates
 ```
 

@@ -138,25 +138,39 @@ def _list(ctx: Ctx, path: str = ".") -> str:
 
 def _glob(ctx: Ctx, pattern: str, path: str = ".") -> str:
     base = ctx.resolve(path)
-    hits = sorted(str(p.relative_to(base)) for p in base.glob(pattern))[:200]
+    # маска не должна выходить за пределы выбранной папки через ..
+    if any(part == ".." for part in re.split(r"[\\/]", pattern)):
+        raise PermissionError("маска не может содержать ..")
+    try:
+        hits = sorted(str(p.relative_to(base)) for p in base.glob(pattern))[:200]
+    except (NotImplementedError, ValueError) as exc:
+        raise ValueError(f"некорректная маска: {pattern}") from exc
     return "\n".join(hits) if hits else f"по маске {pattern} ничего не найдено в {base}"
+
+
+_SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "shots", "dist", "build"}
 
 
 def _grep(ctx: Ctx, pattern: str, path: str = ".", glob: str = "*") -> str:
     base = ctx.resolve(path)
     rx = re.compile(pattern, re.IGNORECASE)
     out = []
-    for file in base.rglob(glob):
-        if not file.is_file() or file.stat().st_size > 2_000_000:
-            continue
-        try:
-            for num, line in enumerate(file.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
-                if rx.search(line):
-                    out.append(f"{file.relative_to(base)}:{num}: {line.strip()[:160]}")
-                    if len(out) >= 120:
-                        return "\n".join(out)
-        except OSError:
-            continue
+    for root, dirs, files in os.walk(base):
+        dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
+        for name in files:
+            file = Path(root) / name
+            if not file.match(glob):
+                continue
+            try:
+                if not file.is_file() or file.stat().st_size > 2_000_000:
+                    continue
+                for num, line in enumerate(file.read_text(encoding="utf-8", errors="ignore").splitlines(), 1):
+                    if rx.search(line):
+                        out.append(f"{file.relative_to(base)}:{num}: {line.strip()[:160]}")
+                        if len(out) >= 120:
+                            return "\n".join(out)
+            except OSError:
+                continue
     return "\n".join(out) if out else f"совпадений нет: {pattern}"
 
 
