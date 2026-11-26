@@ -1,6 +1,6 @@
 """Версия сборки и адрес релизов."""
 
-VERSION = "1.1.1"
+VERSION = "1.1.2"
 REPO = "roma1231jjj-cpu/Nexus-AI-HARNESS"
 RELEASES_API = f"https://api.github.com/repos/{REPO}/releases/latest"
 ASSETS = {

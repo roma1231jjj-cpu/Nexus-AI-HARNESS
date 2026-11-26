@@ -26,3 +26,9 @@ dist/
 build/
 *.spec
 packaging/nexus.ico
+# изменяемые настройки и учебные материалы не должны делать git-копию грязной
+data/config.json
+data/hooks.json
+data/train.json
+data/training/
+!data/training/.gitkeep

@@ -95,9 +95,46 @@ def stream(cfg: dict[str, Any], messages: list[dict[str, Any]],
 def _stream_ollama(conf: dict[str, Any], model: str, messages: list[dict[str, Any]],
                    tools: list[dict[str, Any]]) -> Iterator[dict[str, Any]]:
     url = conf.get("base_url", "http://127.0.0.1:11434").rstrip("/") + "/api/chat"
+    # Не выбрасываем tool_calls/role=tool: иначе модель не видит результаты
+    # инструментов и многошаговый цикл превращается в галлюцинации.
+    ollama_messages: list[dict[str, Any]] = []
+    for m in messages:
+        content = m.get("content") or ""
+        images: list[str] = []
+        if isinstance(content, list):
+            texts: list[str] = []
+            for block in content:
+                if not isinstance(block, dict):
+                    continue
+                if block.get("type") == "text":
+                    texts.append(str(block.get("text") or ""))
+                elif block.get("type") == "image_url":
+                    url = str((block.get("image_url") or {}).get("url") or "")
+                    if url.startswith("data:") and "," in url:
+                        images.append(url.split(",", 1)[1])
+            content = chr(10).join(texts)
+        entry: dict[str, Any] = {"role": m.get("role", "user"), "content": content}
+        if images:
+            entry["images"] = images
+        calls = m.get("tool_calls") or []
+        if calls:
+            converted = []
+            for call in calls:
+                fn = dict(call.get("function") or {})
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        fn["arguments"] = json.loads(args)
+                    except json.JSONDecodeError:
+                        fn["arguments"] = {"raw": args}
+                converted.append({"function": fn})
+            entry["tool_calls"] = converted
+        if m.get("name"):
+            entry["tool_name"] = m["name"]
+        ollama_messages.append(entry)
     payload = {
         "model": model,
-        "messages": [{"role": m["role"], "content": m.get("content", "")} for m in messages],
+        "messages": ollama_messages,
         "stream": True,
         "options": {"temperature": 0.4, "num_ctx": 16384},
     }

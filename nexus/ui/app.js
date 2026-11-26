@@ -161,15 +161,20 @@ function renderProvider() {
   sel.onchange = () => guard(async () => {
     const prevProvider = state.cfg.provider;
     const prevModel = state.cfg.model || "";
+    const nextProvider = sel.value;
+    // До ответа сервера держим прежний вариант, но запоминаем выбранный.
     sel.value = prevProvider;
-    state.cfg.provider = sel.value;
+    state.cfg.provider = nextProvider;
     state.cfg.model = "";
     $("model").value = "";
     try {
-      await api("/api/config", { provider: sel.value, model: "" });
+      const data = await api("/api/config", { provider: nextProvider, model: "" });
+      state.model = data.model || "";
+      sel.value = nextProvider;
     } catch (err) {
       state.cfg.provider = prevProvider;
       state.cfg.model = prevModel;
+      state.model = prevModel;
       sel.value = prevProvider;
       $("model").value = prevModel;
       updateSendState();
@@ -195,9 +200,11 @@ function renderModels() {
     state.cfg.model = next;
     updateSendState();
     try {
-      await api("/api/config", { model: next });
+      const data = await api("/api/config", { model: next });
+      state.model = data.model || next;
     } catch (err) {
       state.cfg.model = prev;
+      state.model = prev;
       $("model").value = prev;
       updateSendState();
       throw err;
@@ -545,7 +552,7 @@ document.addEventListener("keydown", (ev) => {
 
 /* ------------------------------------------------------------------ отправка */
 function updateSendState() {
-  const model = String((state.cfg && state.cfg.model) || "").trim();
+  const model = String((state.model || (state.cfg && state.cfg.model)) || "").trim();
   $("send").disabled = state.busy || !model;
   $("send").title = model ? "" : t("needModel");
   $("stopBtn").hidden = !state.busy;
@@ -562,7 +569,7 @@ async function send() {
   const input = $("input");
   const text = input.value.trim();
   if (!text || state.busy) return;
-  if (!String((state.cfg && state.cfg.model) || "").trim()) {
+  if (!String((state.model || (state.cfg && state.cfg.model)) || "").trim()) {
     notify(t("needModel"));
     updateSendState();
     return;
@@ -961,6 +968,7 @@ async function boot() {
 
   const data = await api("/api/state");
   state.cfg = data.config;
+  state.model = data.model || "";
   state.modes = data.modes;
   state.sessions = data.sessions;
   state.models = data.models || [];

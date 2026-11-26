@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import queue
+import re
 import threading
 import time
 from pathlib import Path
@@ -47,6 +48,11 @@ class SessionBus:
 
     def stop(self, session_id: str) -> None:
         self.stop_signal(session_id).set()
+        # Не оставляем подтверждение висеть до таймаута: стоп = отказ.
+        with self._lock:
+            for call_id, flag in (self._pending.get(session_id) or {}).items():
+                self._decisions[call_id] = "stopped"
+                flag.set()
 
     def clear_stop(self, session_id: str) -> None:
         self.stop_signal(session_id).clear()
@@ -55,13 +61,20 @@ class SessionBus:
         flag = threading.Event()
         with self._lock:
             self._pending.setdefault(session_id, {})[call_id] = flag
-        if not flag.wait(timeout=900):
-            with self._lock:
-                self._pending.get(session_id, {}).pop(call_id, None)
-            return "timeout"
+        deadline = time.time() + 900
+        while time.time() < deadline:
+            if flag.wait(timeout=0.25):
+                with self._lock:
+                    self._pending.get(session_id, {}).pop(call_id, None)
+                    return self._decisions.pop(call_id, "deny")
+            if self.stop_signal(session_id).is_set():
+                with self._lock:
+                    self._pending.get(session_id, {}).pop(call_id, None)
+                    self._decisions.pop(call_id, None)
+                return "stopped"
         with self._lock:
             self._pending.get(session_id, {}).pop(call_id, None)
-            return self._decisions.pop(call_id, "deny")
+        return "timeout"
 
     def decide(self, call_id: str, decision: str) -> bool:
         with self._lock:
@@ -71,6 +84,34 @@ class SessionBus:
                     flags[call_id].set()
                     return True
         return False
+
+
+_STREAM_END = object()
+
+
+def _iter_stoppable(events: Any, stop: threading.Event) -> Any:
+    """Читает поток модели в фоне, чтобы «стоп» срабатывал во время генерации."""
+    channel: queue.Queue = queue.Queue(maxsize=256)
+
+    def pump() -> None:
+        try:
+            for event in events:
+                channel.put(event)
+            channel.put(_STREAM_END)
+        except BaseException as exc:  # noqa: BLE001
+            channel.put(exc)
+
+    threading.Thread(target=pump, daemon=True, name="nexus-stream").start()
+    while not stop.is_set():
+        try:
+            item = channel.get(timeout=0.2)
+        except queue.Empty:
+            continue
+        if item is _STREAM_END:
+            return
+        if isinstance(item, BaseException):
+            raise item
+        yield item
 
 
 class Runner:
@@ -153,7 +194,10 @@ class Runner:
                 try:
                     chat = [{"role": "system", "content": config.system_prompt(cfg)}]
                     chat += protocol.to_chat(session["messages"][:-1])
-                    for event in providers.stream(cfg, chat, tools.schemas()):
+                    for event in _iter_stoppable(
+                        providers.stream(cfg, chat, tools.schemas()),
+                        self.bus.stop_signal(session_id),
+                    ):
                         if event["type"] == "text":
                             buffer.append(event["text"])
                             reply["parts"] = [protocol.text_part("".join(buffer))]
@@ -236,8 +280,12 @@ class Runner:
                     elapsed = int((time.time() - started) * 1000)
                     if self.hooks:
                         self.hooks.post_tool(name, args, output, ok, session_id, elapsed)
+                    meta: dict[str, Any] = {"ms": elapsed}
+                    shot = re.search(r"([A-Za-z]:\\[^\n]+\.(?:png|jpe?g))", output, re.IGNORECASE)
+                    if shot and name in ("screen_shot", "browser_screenshot"):
+                        meta["image"] = shot.group(1)
                     result = protocol.tool_result_part(call["id"], name, output, ok=ok,
-                                                       meta={"ms": elapsed})
+                                                       meta=meta)
                     session["messages"].append(protocol.message("tool", [result]))
                     self.store.save(session)
                     self.bus.emit(session_id, {"type": "tool_result", "part": result})

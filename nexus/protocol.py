@@ -6,8 +6,11 @@ Part — атомарная единица содержимого: текст, �
 
 from __future__ import annotations
 
+import base64
+import mimetypes
 import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 
@@ -91,9 +94,23 @@ def new_session(title: str = "Новая сессия", *, auto_title: bool = Tr
     }
 
 
+def image_block(path: str) -> dict[str, Any] | None:
+    """Картинка для vision-модели. Больше 8 МБ не тащим в контекст."""
+    try:
+        target = Path(path)
+        if not target.is_file() or target.stat().st_size > 8 * 1024 * 1024:
+            return None
+        mime = mimetypes.guess_type(target.name)[0] or "image/png"
+        data = base64.b64encode(target.read_bytes()).decode("ascii")
+    except OSError:
+        return None
+    return {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{data}"}}
+
+
 def to_chat(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Свести parts в плоский формат chat-API (OpenAI/Ollama-совместимый)."""
     out: list[dict[str, Any]] = []
+    images_sent = 0
     for msg in messages:
         role = msg.get("role")
         texts = [p["text"] for p in msg.get("parts", []) if p.get("type") == "text" and p.get("text")]
@@ -128,6 +145,17 @@ def to_chat(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "name": res.get("tool", ""),
                     "content": res.get("output", ""),
                 })
+                image_path = str((res.get("meta") or {}).get("image") or "")
+                if image_path and images_sent < 2:
+                    block = image_block(image_path)
+                    if block:
+                        # tool-сообщения не умеют картинки: добавляем отдельное
+                        # пользовательское сообщение, иначе модель слепая.
+                        out.append({"role": "user", "content": [
+                            {"type": "text", "text": "Снимок, который вернул инструмент:"},
+                            block,
+                        ]})
+                        images_sent += 1
     return out
 
 

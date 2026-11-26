@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import re
@@ -153,7 +154,10 @@ _SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__", "shots", "
 
 def _grep(ctx: Ctx, pattern: str, path: str = ".", glob: str = "*") -> str:
     base = ctx.resolve(path)
-    rx = re.compile(pattern, re.IGNORECASE)
+    try:
+        rx = re.compile(pattern, re.IGNORECASE)
+    except re.error as exc:
+        raise ValueError(f"некорректная регулярка: {exc}") from exc
     out = []
     for root, dirs, files in os.walk(base):
         dirs[:] = [d for d in dirs if d not in _SKIP_DIRS and not d.startswith(".")]
@@ -462,9 +466,12 @@ def execute(ctx: Ctx, name: str, args: dict[str, Any]) -> tuple[str, bool]:
     if tool is None:
         return f"нет такого инструмента: {name}", False
     try:
-        result = tool["fn"](ctx, **args)
-        return str(result), True
+        inspect.signature(tool["fn"]).bind(ctx, **args)
     except TypeError as exc:
         return f"неверные аргументы {name}: {exc}", False
+    try:
+        result = tool["fn"](ctx, **args)
+        return str(result), True
     except Exception as exc:  # noqa: BLE001
-        return f"{type(exc).__name__}: {exc}", False
+        # TypeError внутри инструмента — это баг кода, а не модели.
+        return f"инструмент {name} упал: {type(exc).__name__}: {exc}", False

@@ -83,8 +83,14 @@ class App:
             models = provider_models(self.cfg)
         except Exception:
             models = []
+        provider_id = self.cfg.get("provider") or ""
+        provider_conf = (self.cfg.get("providers") or {}).get(provider_id) or {}
+        effective_model = str(self.cfg.get("model") or provider_conf.get("model") or "")
         return {
             "config": self.cfg,
+            # UI проверяет именно это поле: у провайдера может быть модель
+            # по умолчанию, пока cfg.model пуст.
+            "model": effective_model,
             "modes": [{"id": k, **v} for k, v in config.MODES.items()],
             "sessions": self.store.list(),
             "models": models,
@@ -106,6 +112,10 @@ def provider_models(cfg: dict[str, Any]) -> list[str]:
 
 
 APP = App()
+
+
+class _BadBody(Exception):
+    pass
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -168,14 +178,25 @@ class Handler(BaseHTTPRequestHandler):
         self._send(code, json.dumps(data, ensure_ascii=False).encode())
 
     def _body(self) -> dict[str, Any]:
-        length = int(self.headers.get("Content-Length") or 0)
-        if length <= 0 or length > MAX_BODY:
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError as exc:
+            raise _BadBody("некорректный Content-Length") from exc
+        if length <= 0:
             return {}
+        if length > MAX_BODY:
+            # Остаток тела нельзя оставлять в keep-alive сокете: он станет
+            # «следующим запросом». Закрываем соединение, не вычитывая гигабайты.
+            self.close_connection = True
+            raise _BadBody("тело запроса слишком большое")
         raw = self.rfile.read(length)
         try:
-            return json.loads(raw.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            return {}
+            data = json.loads(raw.decode("utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise _BadBody("некорректный JSON") from exc
+        if not isinstance(data, dict):
+            raise _BadBody("ожидался JSON-объект")
+        return data
 
     def _static(self, rel: str, cookie: bool = False) -> None:
         base = Path(UI_DIR).resolve()
@@ -250,6 +271,12 @@ class Handler(BaseHTTPRequestHandler):
         return 0 if ctype == "application/json" else 415
 
     def do_POST(self) -> None:
+        try:
+            self._post()
+        except _BadBody as exc:
+            self._json({"error": str(exc), "code": "ev.badBody", "vars": {}}, 400)
+
+    def _post(self) -> None:
         path = self.path.split("?")[0]
         parts = [p for p in path.split("/") if p]
 
@@ -314,7 +341,9 @@ class Handler(BaseHTTPRequestHandler):
             if "mode" in body and not config.valid_mode(body.get("mode")):
                 return self._json({"error": "неизвестный режим", "code": "ev.badMode",
                                    "vars": {}}, 400)
-            return self._json(APP.refresh(body))
+            APP.refresh(body)
+            # UI ждёт и эффективную модель провайдера, а не только cfg.
+            return self._json(APP.state())
 
         if path == "/api/approve":
             body = self._body()
@@ -325,12 +354,19 @@ class Handler(BaseHTTPRequestHandler):
             session_id, action = parts[2], parts[3]
             if action == "message":
                 body = self._body()
+                text = str(body.get("text") or "").strip()
+                if not text:
+                    return self._json({"error": "пустое сообщение", "code": "ev.emptyMessage",
+                                       "vars": {}}, 400)
+                if APP.store.get(session_id) is None:
+                    return self._json({"error": "нет сессии", "code": "ev.noSession",
+                                       "vars": {}}, 404)
                 if body.get("mode"):
                     if not config.valid_mode(body["mode"]):
                         return self._json({"error": "неизвестный режим", "code": "ev.badMode",
                                            "vars": {}}, 400)
                     APP.refresh({"mode": body["mode"]})
-                started = APP.runner.start_turn(session_id, str(body.get("text", "")), APP.cfg)
+                started = APP.runner.start_turn(session_id, text, APP.cfg)
                 return self._json({"started": started},
                                   200 if started else 409)
             if action == "stop":
