@@ -23,7 +23,8 @@ SESSIONS = DATA / "sessions"
 WORKSPACE = DATA / "workspace"
 SHOTS = DATA / "shots"
 BROWSER_PROFILE = DATA / "browser-profile"
-CONFIG_PATH = DATA / "config.json"
+CONFIG_PATH = DATA / "config.local.json"
+LEGACY_CONFIG = DATA / "config.json"
 
 MODES: dict[str, dict] = {
     "plan": {
@@ -45,16 +46,24 @@ MODES: dict[str, dict] = {
 
 # Команды, которые спрашиваем даже в Act.
 DANGEROUS = [
-    r"\brm\s+-rf\s+/",
-    r"\bformat\s+[a-z]:",
+    r"\brm\s+(-[a-z]+\s+)*/",
+    r"\b(format|format-volume)\b",
     r"\bshutdown\b",
     r"\brestart-computer\b",
+    r"\bstop-computer\b",
     r"\bdiskpart\b",
     r"\bbcdedit\b",
     r"\bvssadmin\b",
     r"\bcipher\s+/w",
-    r"\breg\s+delete\b",
-    r"\btaskkill\s+/f\s+/im\s+explorer",
+    r"\b(reg\s+(add|delete)|set-itemproperty\s+.*\\run)\b",
+    r"\b(taskkill|stop-process)\b.*\b(explorer|lsass|winlogon|csrss)\b",
+    r"\b(rd|rmdir)\s+/s\b",
+    r"\bdel\s+/[fsq]\b",
+    r"\b(remove-item|erase)\b.*\b(-recurse|-force|/s|/q)\b",
+    r"\b(takeown|icacls)\b",
+    r"\bnet\s+user\b",
+    r"\bwmic\b.*\bdelete\b",
+    r"\bschtasks\b.*\b(create|delete)\b",
 ]
 
 DEFAULTS: dict = {
@@ -98,7 +107,7 @@ DEFAULTS: dict = {
         },
     },
     "browser": {
-        "executable": r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+        "executable": "",
         "profile_dir": str(BROWSER_PROFILE),
         "headless": False,
         "isolated": True,
@@ -108,7 +117,7 @@ DEFAULTS: dict = {
         "servers": {
             "browse": {
                 "label": "browse — браузер владельца",
-                "command": [r"C:\Users\roma1\.local\bin\browse.exe", "mcp"],
+                "command": ["browse", "mcp"],
                 "class": "browser",
                 "env": {"OPENCODE_BROWSER_RUNTIME": "auto-update"},
                 "enabled": False,
@@ -129,14 +138,46 @@ def _merge(base: dict, extra: dict) -> dict:
     return out
 
 
+def valid_mode(value: Any) -> bool:
+    return isinstance(value, str) and value in MODES
+
+
+def _detect_browser() -> str:
+    """Первый найденный Chrome/Edge; пустая строка — пусть Playwright ищет сам."""
+    candidates = [
+        os.environ.get("NEXUS_BROWSER", ""),
+        os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+                     r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
+                     r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("LOCALAPPDATA", ""),
+                     r"Google\Chrome\Application\chrome.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"),
+                     r"Microsoft\Edge\Application\msedge.exe"),
+        os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"),
+                     r"Microsoft\Edge\Application\msedge.exe"),
+    ]
+    for path in candidates:
+        if path and Path(path).is_file():
+            return path
+    return ""
+
+
 def load() -> dict:
     DATA.mkdir(parents=True, exist_ok=True)
-    if CONFIG_PATH.exists():
+    source = CONFIG_PATH if CONFIG_PATH.exists() else LEGACY_CONFIG
+    cfg = copy.deepcopy(DEFAULTS)
+    if source.exists():
         try:
-            return _merge(DEFAULTS, json.loads(CONFIG_PATH.read_text(encoding="utf-8")))
+            cfg = _merge(DEFAULTS, json.loads(source.read_text(encoding="utf-8")))
+            if source == LEGACY_CONFIG:
+                # старый data/config.json больше не пишем: он в git и делал дерево грязным
+                save(cfg)
         except (json.JSONDecodeError, OSError):
             pass
-    return copy.deepcopy(DEFAULTS)
+    if not (cfg.get("browser") or {}).get("executable"):
+        cfg.setdefault("browser", {})["executable"] = _detect_browser()
+    return cfg
 
 
 def save(cfg: dict) -> dict:

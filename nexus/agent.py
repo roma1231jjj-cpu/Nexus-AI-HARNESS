@@ -86,13 +86,18 @@ class Runner:
     @staticmethod
     def needs_approval(cfg: dict[str, Any], tool_name: str, args: dict[str, Any]) -> bool:
         mode = cfg.get("mode", "plan")
+        if not config.valid_mode(mode):
+            # опечатка/подделка в конфиге не должна тихо включать полный доступ
+            mode = "plan"
         tool = tools.TOOLS.get(tool_name) or {}
         if mode == "full":
             return False
         if mode == "plan":
             return True
-        # act: спрашиваем про мышь/клавиатуру и опасные команды
+        # act: спрашиваем про мышь/клавиатуру, JS в браузере и опасные команды
         if tool.get("class") == "gui":
+            return True
+        if tool_name == "browser_eval":
             return True
         if tool_name == "shell" and tools.is_dangerous(str(args.get("command", ""))):
             return True

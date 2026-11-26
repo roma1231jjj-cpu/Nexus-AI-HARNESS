@@ -14,9 +14,35 @@ import time
 from pathlib import Path
 from typing import Any, Callable
 
+from . import config
 from .config import SHOTS, DANGEROUS
 
 MAX_OUTPUT = 12000
+MAX_READ_BYTES = 4 * 1024 * 1024
+MAX_LIMIT = 2000
+
+
+def _outside_allowed() -> bool:
+    return os.environ.get("NEXUS_ALLOW_OUTSIDE", "") == "1"
+
+
+def _blocked(target: Path) -> str:
+    """Файлы, которые инструменты не должны менять: политика и автостарт."""
+    try:
+        resolved = target.resolve()
+    except OSError:
+        resolved = target
+    protected = {config.DATA / "hooks.json", config.DATA / "config.local.json",
+                 config.DATA / "config.json", config.DATA / "token"}
+    if resolved in {p.resolve() for p in protected}:
+        return "этот файл защищён: настройки и хуки меняются только вручную"
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        startup = (Path(appdata) / "Microsoft" / "Windows" / "Start Menu" /
+                   "Programs" / "Startup")
+        if resolved.is_relative_to(startup):
+            return "автозагрузка защищена: сюда пишет только пользователь"
+    return ""
 
 
 class Ctx:
@@ -30,7 +56,13 @@ class Ctx:
     def resolve(self, path: str | None) -> Path:
         raw = Path(path or ".")
         target = raw if raw.is_absolute() else self.workspace / raw
-        return target.expanduser()
+        target = target.expanduser().resolve()
+        root = self.workspace.resolve()
+        if not _outside_allowed() and not target.is_relative_to(root):
+            raise PermissionError(
+                f"путь вне рабочей папки: {target}. Рабочая папка — {root}; "
+                "для доступа вне её задай NEXUS_ALLOW_OUTSIDE=1")
+        return target
 
 
 def _read(ctx: Ctx, path: str, offset: int = 1, limit: int = 400) -> str:
@@ -39,15 +71,26 @@ def _read(ctx: Ctx, path: str, offset: int = 1, limit: int = 400) -> str:
         return f"нет файла: {target}"
     if target.is_dir():
         return _list(ctx, path)
+    try:
+        size = target.stat().st_size
+    except OSError as exc:
+        return f"не прочитать {target}: {exc}"
+    if size > MAX_READ_BYTES:
+        return (f"файл {target} слишком большой ({size} байт). "
+                "Читай через shell (findstr/Select-String) или укажи точный диапазон.")
     lines = target.read_text(encoding="utf-8", errors="replace").splitlines()
-    start = max(offset - 1, 0)
-    chunk = lines[start:start + max(1, limit)]
+    start = max(int(offset) - 1, 0)
+    limit = max(1, min(int(limit), MAX_LIMIT))
+    chunk = lines[start:start + limit]
     head = f"{target} · строки {start + 1}-{start + len(chunk)} из {len(lines)}"
     return head + "\n" + "\n".join(f"{start + i + 1:>5}  {line}" for i, line in enumerate(chunk))
 
 
 def _write(ctx: Ctx, path: str, content: str) -> str:
     target = ctx.resolve(path)
+    blocked = _blocked(target)
+    if blocked:
+        return blocked
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return f"записано {len(content)} символов → {target}"
@@ -57,10 +100,25 @@ def _edit(ctx: Ctx, path: str, old: str, new: str) -> str:
     target = ctx.resolve(path)
     if not target.exists():
         return f"нет файла: {target}"
+    blocked = _blocked(target)
+    if blocked:
+        return blocked
     text = target.read_text(encoding="utf-8", errors="replace")
-    if old not in text:
+    nl = "\r\n" if "\r\n" in text else "\n"
+    hay = text.replace("\r\n", "\n").replace("\r", "\n")
+    needle = old.replace("\r\n", "\n").replace("\r", "\n")
+    if not needle:
+        return "пустой фрагмент для замены"
+    count = hay.count(needle)
+    if count == 0:
         return "фрагмент не найден — прочитай файл и повтори с точным текстом"
-    target.write_text(text.replace(old, new, 1), encoding="utf-8")
+    if count > 1:
+        return (f"фрагмент встречается {count} раз — уточни old, "
+                "добавив соседние строки, чтобы правка не попала не туда")
+    updated = hay.replace(needle, new.replace("\r\n", "\n").replace("\r", "\n"), 1)
+    if nl == "\r\n":
+        updated = updated.replace("\n", "\r\n")
+    target.write_bytes(updated.encode("utf-8"))
     return f"заменено в {target}"
 
 

@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import shutil
 import subprocess
@@ -42,16 +43,16 @@ DEMO_MESSAGES = [
 
 def port_alive(port: int) -> bool:
     try:
-        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/state", timeout=2):
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=2):
             return True
     except Exception:  # noqa: BLE001
         return False
 
 
 def seed_demo() -> Path:
-    backup = ROOT / "build" / "sessions-backup"
+    # бэкап с меткой времени: не затираем предыдущий, если прошлый прогон упал
+    backup = ROOT / "build" / f"sessions-backup-{int(time.time())}"
     if SESSIONS.exists():
-        shutil.rmtree(backup, ignore_errors=True)
         shutil.copytree(SESSIONS, backup)
     SESSIONS.mkdir(parents=True, exist_ok=True)
     messages = []
@@ -82,6 +83,7 @@ def restore(backup: Path) -> None:
     if backup.exists():
         shutil.rmtree(SESSIONS, ignore_errors=True)
         shutil.copytree(backup, SESSIONS)
+        shutil.rmtree(backup, ignore_errors=True)
 
 
 def start_daemon(port: int) -> subprocess.Popen | None:
@@ -108,8 +110,16 @@ def main() -> int:
     args = parser.parse_args()
 
     (ROOT / "build").mkdir(parents=True, exist_ok=True)
+    if port_alive(args.port):
+        print(f"демон уже запущен на порту {args.port}: останови его, иначе демо-сессия "
+              "попадёт в живые данные")
+        return 4
+
     backup = seed_demo()
+    atexit.register(restore, backup)
     daemon = start_daemon(args.port)
+    if daemon:
+        atexit.register(daemon.terminate)
     try:
         from playwright.sync_api import sync_playwright
     except ImportError:

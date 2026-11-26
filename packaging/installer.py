@@ -26,6 +26,8 @@ timeout /t 1 >nul
 del "%USERPROFILE%\\Desktop\\{name}.lnk" >nul 2>&1
 del "%APPDATA%\\Microsoft\\Windows\\Start Menu\\Programs\\{name}.lnk" >nul 2>&1
 reg delete "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{name}" /f >nul 2>&1
+rem данные (сессии, обучение, снимки) не удаляем: переносим рядом и оставляем
+if exist "{target}\\data" move "{target}\\data" "%LOCALAPPDATA%\\{name}-data" >nul 2>&1
 rmdir /s /q "{target}" >nul 2>&1
 echo Готово.
 timeout /t 2 >nul
@@ -65,6 +67,11 @@ def main() -> int:
     exe = TARGET / "Nexus-AI-HARNESS.exe"
     if not exe.exists():
         raise SystemExit("в архиве нет exe")
+
+    keep = Path(os.environ.get("LOCALAPPDATA", Path.home())) / f"{APP_NAME}-data"
+    if keep.exists():
+        shutil.copytree(keep, TARGET / "data", dirs_exist_ok=True)
+        shutil.rmtree(keep, ignore_errors=True)
 
     desktop = Path(os.environ.get("USERPROFILE", Path.home())) / "Desktop" / f"{APP_NAME}.lnk"
     start = (Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" /

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import hmac
 import json
 import mimetypes
 import queue
+import secrets
 import subprocess
 import sys
 import threading
@@ -21,6 +23,25 @@ from .store import Store
 
 UI_DIR = config.UI_DIR
 MAX_BODY = 24 * 1024 * 1024
+COOKIE = "nx_token"
+
+
+def _token() -> str:
+    """Токен демона: файл в data/, создаётся один раз."""
+    path = config.DATA / "token"
+    try:
+        value = path.read_text(encoding="utf-8").strip()
+        if value:
+            return value
+    except OSError:
+        pass
+    value = secrets.token_urlsafe(32)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value, encoding="utf-8")
+    return value
+
+
+TOKEN = _token()
 
 
 class App:
@@ -71,6 +92,7 @@ class App:
             "training": training.stats(),
             "mcp": {**self.mcp.summary(), "status": self.mcp_status},
             "hooks": self.hooks.summary(),
+            "hooks_error": getattr(self.hooks, "load_error", ""),
             "tools": [{"name": name, "class": tool.get("class")} for name, tool in tools.TOOLS.items()],
             "update": self.update_state,
         }
@@ -93,13 +115,53 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     # ---------------------------------------------------------------- helpers
-    def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8") -> None:
+    def _send(self, code: int, body: bytes, ctype: str = "application/json; charset=utf-8",
+              extra: dict[str, str] | None = None) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        for key, value in (extra or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
+
+    # ---------------------------------------------------------------- доступ
+    def _host_ok(self) -> bool:
+        host = (self.headers.get("Host") or "").strip().lower()
+        if host.startswith("["):
+            name, _, rest = host.partition("]")
+            name += "]"
+            port = rest.lstrip(":")
+        else:
+            name, _, port = host.partition(":")
+        if name not in ("127.0.0.1", "localhost", "[::1]"):
+            return False
+        return port in ("", str(self.server.server_address[1]))
+
+    def _origin_ok(self) -> bool:
+        origin = (self.headers.get("Origin") or "").strip().lower()
+        if not origin:
+            return True
+        port = self.server.server_address[1]
+        return origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}",
+                          f"http://[::1]:{port}")
+
+    def _authorized(self) -> bool:
+        supplied = self.headers.get("X-Nexus-Token") or ""
+        if not supplied:
+            for part in (self.headers.get("Cookie") or "").split(";"):
+                key, _, value = part.strip().partition("=")
+                if key == COOKIE:
+                    supplied = value
+                    break
+        return bool(supplied) and hmac.compare_digest(supplied, TOKEN)
+
+    def _deny(self) -> None:
+        if self.path.startswith("/api/"):
+            self._json({"error": "unauthorized", "code": "ev.unauthorized"}, 401)
+        else:
+            self._send(403, b"forbidden", "text/plain; charset=utf-8")
 
     def _json(self, data: Any, code: int = 200) -> None:
         self._send(code, json.dumps(data, ensure_ascii=False).encode())
@@ -114,23 +176,34 @@ class Handler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, UnicodeDecodeError):
             return {}
 
-    def _static(self, rel: str) -> None:
-        path = (UI_DIR / rel.lstrip("/")).resolve()
-        if not str(path).startswith(str(UI_DIR)) or not path.is_file():
+    def _static(self, rel: str, cookie: bool = False) -> None:
+        base = Path(UI_DIR).resolve()
+        path = (base / rel.lstrip("/")).resolve()
+        if not path.is_relative_to(base) or not path.is_file():
             self._send(404, b"not found", "text/plain; charset=utf-8")
             return
         ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
         if path.suffix in (".js", ".css", ".html"):
             ctype += "; charset=utf-8"
-        self._send(200, path.read_bytes(), ctype)
+        extra = { "Set-Cookie": f"{COOKIE}={TOKEN}; Path=/; HttpOnly; SameSite=Strict" } if cookie else None
+        self._send(200, path.read_bytes(), ctype, extra)
 
     # ---------------------------------------------------------------- GET
     def do_GET(self) -> None:
         path = self.path.split("?")[0]
         parts = [p for p in path.split("/") if p]
 
+        if not self._host_ok():
+            return self._deny()
+        if path == "/api/health":
+            return self._json({"ok": True, "version": __import__("nexus.version", fromlist=["VERSION"]).VERSION})
+        if path.startswith("/api/") and not self._authorized():
+            return self._deny()
+
         if path in ("/", "/index.html"):
-            return self._static("index.html")
+            if not self._origin_ok():
+                return self._deny()
+            return self._static("index.html", cookie=True)
         if path in ("/app.js", "/i18n.js", "/style.css", "/favicon.svg"):
             return self._static(path)
         if path == "/api/state":
@@ -158,7 +231,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._sse(parts[2])
 
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "shots":
-            shot = (config.SHOTS / parts[2]).resolve()
+            base = Path(config.SHOTS).resolve()
+            shot = (base / parts[2]).resolve()
+            if not shot.is_relative_to(base):
+                return self._send(403, b"forbidden", "text/plain; charset=utf-8")
             if shot.is_file():
                 return self._send(200, shot.read_bytes(), "image/png")
             return self._send(404, b"no shot", "text/plain")
@@ -166,9 +242,21 @@ class Handler(BaseHTTPRequestHandler):
         return self._send(404, b"not found", "text/plain; charset=utf-8")
 
     # ---------------------------------------------------------------- POST
+    def _post_allowed(self) -> int:
+        if not self._host_ok() or not self._authorized() or not self._origin_ok():
+            return 401
+        ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
+        return 0 if ctype == "application/json" else 415
+
     def do_POST(self) -> None:
         path = self.path.split("?")[0]
         parts = [p for p in path.split("/") if p]
+
+        rejected = self._post_allowed()
+        if rejected:
+            if rejected == 415:
+                return self._send(415, b"json required", "text/plain; charset=utf-8")
+            return self._deny()
 
         if path == "/api/sessions":
             body = self._body()
@@ -221,7 +309,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({**result, "state": APP.update_state})
 
         if path == "/api/config":
-            return self._json(APP.refresh(self._body()))
+            body = self._body()
+            if "mode" in body and not config.valid_mode(body.get("mode")):
+                return self._json({"error": "неизвестный режим", "code": "ev.badMode",
+                                   "vars": {}}, 400)
+            return self._json(APP.refresh(body))
 
         if path == "/api/approve":
             body = self._body()
@@ -233,6 +325,9 @@ class Handler(BaseHTTPRequestHandler):
             if action == "message":
                 body = self._body()
                 if body.get("mode"):
+                    if not config.valid_mode(body["mode"]):
+                        return self._json({"error": "неизвестный режим", "code": "ev.badMode",
+                                           "vars": {}}, 400)
                     APP.refresh({"mode": body["mode"]})
                 started = APP.runner.start_turn(session_id, str(body.get("text", "")), APP.cfg)
                 return self._json({"started": started},
@@ -244,6 +339,15 @@ class Handler(BaseHTTPRequestHandler):
         if len(parts) == 3 and parts[:2] == ["api", "sessions"]:
             return self._json({"deleted": APP.store.delete(parts[2])})
 
+        return self._send(404, b"not found", "text/plain; charset=utf-8")
+
+    def do_DELETE(self) -> None:
+        path = self.path.split("?")[0]
+        parts = [p for p in path.split("/") if p]
+        if not self._host_ok() or not self._authorized() or not self._origin_ok():
+            return self._deny()
+        if len(parts) == 3 and parts[:2] == ["api", "sessions"]:
+            return self._json({"deleted": APP.store.delete(parts[2])})
         return self._send(404, b"not found", "text/plain; charset=utf-8")
 
     # ---------------------------------------------------------------- SSE

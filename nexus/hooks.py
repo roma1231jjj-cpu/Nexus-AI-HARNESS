@@ -35,16 +35,20 @@ class Hooks:
         self.events: dict[str, list[dict[str, Any]]] = {}
         self.root = path.parent.parent
         self.log_path = path.parent / "logs" / "hooks.log"
+        self.load_error = ""
         self._lock = threading.Lock()
         self.load()
 
     # ---------------------------------------------------------------- загрузка
     def load(self) -> None:
         raw: dict[str, Any] = {}
+        self.load_error = ""
         if self.path.exists():
             try:
                 raw = json.loads(self.path.read_text(encoding="utf-8"))
-            except (json.JSONDecodeError, OSError):
+            except (json.JSONDecodeError, OSError) as exc:
+                self.load_error = f"hooks.json не прочитан: {exc}"
+                self._log(self.load_error)
                 raw = {}
         else:
             self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -94,9 +98,13 @@ class Hooks:
                 )
             except subprocess.TimeoutExpired:
                 self._log(f"{event}/{name}: таймаут {timeout:g} с")
+                if blockable:
+                    return False, f"хук {name} не ответил за {timeout:g} с — действие заблокировано"
                 continue
             except OSError as exc:
                 self._log(f"{event}/{name}: не запустился ({exc})")
+                if blockable:
+                    return False, f"хук {name} не запустился ({exc}) — действие заблокировано"
                 continue
             out, err = (done.stdout or "").strip(), (done.stderr or "").strip()
             if out:

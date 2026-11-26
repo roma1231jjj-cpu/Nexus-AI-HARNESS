@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -66,7 +67,8 @@ def _frozen_status(force: bool = False) -> dict[str, Any]:
         data = _release()
         latest = str(data.get("tag_name") or "")
         assets = [{"name": item.get("name"), "url": item.get("browser_download_url"),
-                   "size": item.get("size")} for item in data.get("assets") or []]
+                   "size": item.get("size"), "digest": item.get("digest")}
+                  for item in data.get("assets") or []]
         result = {
             "ok": True, "mode": "release", "current": VERSION, "latest": latest.lstrip("v"),
             "behind": 0 if latest.lstrip("v") == VERSION else 1,
@@ -169,6 +171,10 @@ def _apply_release() -> dict[str, Any]:
         return {"ok": False, "reason": "в релизе нет файла Nexus-AI-HARNESS.exe",
                 "code": "ev.updateNoAsset", "vars": {}}
     target = exe.with_suffix(".exe.new")
+    expect_size = int(asset.get("size") or 0)
+    digest = str(asset.get("digest") or "").lower()
+    hasher = hashlib.sha256()
+    total = 0
     try:
         request = urllib.request.Request(asset["url"], headers={
             "User-Agent": f"Nexus-AI-HARNESS/{VERSION}"})
@@ -177,10 +183,21 @@ def _apply_release() -> dict[str, Any]:
                 chunk = response.read(1 << 20)
                 if not chunk:
                     break
+                hasher.update(chunk)
+                total += len(chunk)
                 fh.write(chunk)
     except (urllib.error.URLError, OSError) as exc:
+        target.unlink(missing_ok=True)
         return {"ok": False, "reason": f"не скачалось: {exc}",
                 "code": "ev.updateDownloadFailed", "vars": {"e": str(exc)}}
+    if expect_size and total != expect_size:
+        target.unlink(missing_ok=True)
+        return {"ok": False, "reason": f"скачано {total} байт вместо {expect_size} — файл оборван",
+                "code": "ev.updateDownloadFailed", "vars": {}}
+    if digest.startswith("sha256:") and hasher.hexdigest() != digest[7:]:
+        target.unlink(missing_ok=True)
+        return {"ok": False, "reason": "SHA-256 скачанного файла не совпал с релизом",
+                "code": "ev.updateHashMismatch", "vars": {}}
     return {"ok": True, "output": f"скачана версия {state.get('latest')} — применится при следующем запуске",
             "code": "ev.updateDownloaded", "vars": {"v": state.get("latest")},
             "pending": str(target)}
