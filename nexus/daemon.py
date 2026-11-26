@@ -336,9 +336,7 @@ class Handler(BaseHTTPRequestHandler):
                 APP.bus.stop(session_id)
                 return self._json({"ok": True})
 
-        if len(parts) == 3 and parts[:2] == ["api", "sessions"]:
-            return self._json({"deleted": APP.store.delete(parts[2])})
-
+        # удаление сессии — только DELETE, POST остаётся для сообщений/остановки
         return self._send(404, b"not found", "text/plain; charset=utf-8")
 
     def do_DELETE(self) -> None:
