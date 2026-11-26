@@ -1,3 +1,3 @@
 """Nexus-AI-HARNESS: агент с полным доступом к ПК."""
 
-__version__ = "0.1.0"
+from .version import VERSION as __version__

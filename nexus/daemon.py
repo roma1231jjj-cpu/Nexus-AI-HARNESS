@@ -20,6 +20,7 @@ from .browser import BrowserHub
 from .hooks import Hooks
 from .mcp import McpHub
 from .store import Store
+from .version import VERSION
 
 UI_DIR = config.UI_DIR
 MAX_BODY = 24 * 1024 * 1024
@@ -87,7 +88,7 @@ class App:
             "modes": [{"id": k, **v} for k, v in config.MODES.items()],
             "sessions": self.store.list(),
             "models": models,
-            "version": __import__("nexus.version", fromlist=["VERSION"]).VERSION,
+            "version": VERSION,
             "workspace": self.cfg.get("workspace"),
             "training": training.stats(),
             "mcp": {**self.mcp.summary(), "status": self.mcp_status},
@@ -109,7 +110,7 @@ APP = App()
 
 class Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
-    server_version = "Nexus/0.1"
+    server_version = f"Nexus/{VERSION}"
 
     def log_message(self, *args: Any) -> None:  # тихий лог
         pass
@@ -196,7 +197,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._deny()
         if path == "/api/health":
-            return self._json({"ok": True, "version": __import__("nexus.version", fromlist=["VERSION"]).VERSION})
+            return self._json({"ok": True, "version": VERSION})
         if path.startswith("/api/") and not self._authorized():
             return self._deny()
 

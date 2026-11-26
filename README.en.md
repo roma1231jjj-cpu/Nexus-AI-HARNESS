@@ -52,11 +52,11 @@ Every element — buttons, fields, modals, scrollbars, text selection, the backg
 
 ## Features
 
-- **27 tools** — files, search, terminal, desktop, browser and MCP.
+- **25 tools** — files, search, terminal, desktop, browser and MCP.
 - **Hooks on events** — `pre_tool`, `post_tool`, `on_error`, `session_start`, `agent_end`: an external command receives JSON on stdin and can block an action (exit code 2).
 - **MCP client** — stdio servers, their tools are registered as `mcp__<server>__<tool>`. `browse` (the owner's real Chrome) is connected but disabled by default.
 - **Training control** — a dashboard card: checkpoints, stop, resume, adapter merge, GGUF export.
-- **Self-update** — the daemon compares its copy with `origin` every few hours, the ⟳ button pulls changes (`git pull --ff-only`, local edits are never overwritten).
+- **Self-update** — the daemon compares its copy with `origin` on startup, the ⟳ button pulls changes (`git pull --ff-only`, local edits are never overwritten).
 - **Your own training data** — sections for school subjects, law, code, music and agents, with JSONL and plain text upload right from the UI.
 
 ## Download

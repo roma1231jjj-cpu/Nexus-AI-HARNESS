@@ -15,6 +15,8 @@ import sys
 import zipfile
 from pathlib import Path
 
+from nexus.version import VERSION
+
 APP_NAME = "Nexus-AI-HARNESS"
 TARGET = Path(os.environ.get("LOCALAPPDATA", Path.home())) / APP_NAME
 
@@ -89,7 +91,7 @@ def main() -> int:
     subprocess.run(["reg", "add", rf"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}",
                     "/v", "DisplayName", "/d", APP_NAME, "/f"], capture_output=True)
     subprocess.run(["reg", "add", rf"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}",
-                    "/v", "DisplayVersion", "/d", "1.0.0", "/f"], capture_output=True)
+                    "/v", "DisplayVersion", "/d", VERSION, "/f"], capture_output=True)
     subprocess.run(["reg", "add", rf"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}",
                     "/v", "UninstallString", "/d", uninstall_cmd, "/f"], capture_output=True)
     subprocess.run(["reg", "add", rf"HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}",

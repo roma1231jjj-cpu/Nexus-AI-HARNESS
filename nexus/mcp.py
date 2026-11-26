@@ -18,6 +18,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from .version import VERSION
+
 LOG_LIMIT = 4000
 
 
@@ -68,7 +70,7 @@ class McpServer:
         result = self.request("initialize", {
             "protocolVersion": "2024-11-05",
             "capabilities": {},
-            "clientInfo": {"name": "nexus-harness", "version": "0.2"},
+            "clientInfo": {"name": "nexus-harness", "version": VERSION},
         }, timeout=30)
         self.info = result or {}
         self._notify("notifications/initialized", {})
