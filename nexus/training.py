@@ -254,41 +254,68 @@ def _alive(pid: int) -> bool:
     return str(pid) in out
 
 
+NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+
+
+def _num(params: dict[str, Any], key: str, default, lo, hi, cast=int):
+    try:
+        value = cast(params.get(key, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(lo, min(hi, value))
+
+
 def start(params: dict[str, Any]) -> dict[str, Any]:
     ensure_dirs()
     if status().get("running"):
         return {"error": "обучение уже идёт", "code": "ev.trainRunning", "vars": {}}
+    if not FINETUNE_SCRIPT.exists() or not FINETUNE_PY.exists():
+        return {"error": f"не найден скрипт обучения: {FINETUNE_SCRIPT}",
+                "code": "ev.trainNoFinetune", "vars": {"path": str(FINETUNE_SCRIPT)}}
+    if "categories" in params and not isinstance(params.get("categories"), list):
+        return {"error": "категории должны быть списком", "code": "ev.trainBadCategories", "vars": {}}
+    if "categories" in params and not params.get("categories"):
+        return {"error": "не выбрано ни одной категории", "code": "ev.trainNoCategories", "vars": {}}
     categories = params.get("categories") or [c["id"] for c in CATEGORIES]
-    counts = compose(categories, float(params.get("val_ratio", 0.03)))
+    counts = compose(categories, _num(params, "val_ratio", 0.03, 0.0, 0.5, float))
     if counts["train"] < 8:
         return {"error": f"мало материала: {counts['train']} примеров (нужно минимум 8)",
                 "code": "ev.trainTooFew", "vars": {"n": counts["train"]}}
 
-    name = params.get("run_name") or f"nexus-{time.strftime('%Y%m%d-%H%M')}"
+    name = str(params.get("run_name") or f"nexus-{time.strftime('%Y%m%d-%H%M')}").strip()
+    if not NAME_RE.match(name) or ".." in name:
+        return {"error": "имя запуска: только буквы, цифры, точка, дефис и подчёркивание",
+                "code": "ev.trainBadName", "vars": {}}
+    out = Path(str(params.get("out") or (FINETUNE_ROOT / "models" / "adapters"))).resolve()
+    if not out.is_relative_to(FINETUNE_ROOT.resolve()):
+        return {"error": "папка адаптеров должна быть внутри finetune", "code": "ev.trainBadOut", "vars": {}}
     cmd = [
         str(FINETUNE_PY), "-u", str(FINETUNE_SCRIPT),
         "--train", counts["train_path"], "--val", counts["val_path"],
         "--run-name", name,
-        "--seq", str(int(params.get("seq", 768))),
-        "--bs", "1", "--ga", str(int(params.get("ga", 8))),
-        "--epochs", str(params.get("epochs", 1)),
-        "--lr", str(params.get("lr", 0.0002)),
-        "--r", str(int(params.get("r", 16))),
-        "--save-steps", str(int(params.get("save_steps", 100))),
+        "--seq", str(_num(params, "seq", 768, 128, 4096)),
+        "--bs", "1", "--ga", str(_num(params, "ga", 8, 1, 64)),
+        "--epochs", str(_num(params, "epochs", 1, 1, 10)),
+        "--lr", str(_num(params, "lr", 0.0002, 1e-6, 1e-3, float)),
+        "--r", str(_num(params, "r", 16, 1, 128)),
+        "--save-steps", str(_num(params, "save_steps", 100, 10, 10000)),
         "--logging-steps", "5",
-        "--max-steps", str(int(params.get("max_steps", -1))),
-        "--out", str(Path(params.get("out") or (FINETUNE_ROOT / "models" / "adapters"))),
+        "--max-steps", str(_num(params, "max_steps", -1, -1, 1_000_000)),
+        "--out", str(out),
     ]
     if params.get("base_model"):
         cmd += ["--model", str(params["base_model"])]
 
     RUN_LOG.parent.mkdir(parents=True, exist_ok=True)
-    log = RUN_LOG.open("w", encoding="utf-8")
     env = dict(os.environ)
     env["PYTHONIOENCODING"] = "utf-8"
-    proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT,
-                            cwd=str(FINETUNE_ROOT), env=env,
-                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    log = RUN_LOG.open("w", encoding="utf-8")
+    try:
+        proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT,
+                                cwd=str(FINETUNE_ROOT), env=env,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    finally:
+        log.close()
     meta = {"pid": proc.pid, "run_name": name, "categories": categories,
             "params": params, "started": time.time(), "cmd": cmd,
             "adapter": str((FINETUNE_ROOT / "models" / "adapters") / name)}
