@@ -61,18 +61,31 @@ class INPUT(ctypes.Structure):
 
 
 VK: dict[str, int] = {
-    "enter": 0x0D, "tab": 0x09, "esc": 0x1B, "escape": 0x1B, "space": 0x20,
+    "enter": 0x0D, "return": 0x0D, "tab": 0x09, "esc": 0x1B, "escape": 0x1B, "space": 0x20,
     "backspace": 0x08, "delete": 0x2E, "insert": 0x2D, "home": 0x24, "end": 0x23,
     "pageup": 0x21, "pagedown": 0x22, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27,
     "ctrl": 0x11, "control": 0x11, "shift": 0x10, "alt": 0x12, "win": 0x5B,
     "f1": 0x70, "f2": 0x71, "f3": 0x72, "f4": 0x73, "f5": 0x74, "f6": 0x75,
     "f7": 0x76, "f8": 0x77, "f9": 0x78, "f10": 0x79, "f11": 0x7A, "f12": 0x7B,
+    "minus": 0xBD, "-": 0xBD, "equal": 0xBB, "=": 0xBB, "plus": 0xBB, "+": 0xBB,
+    "comma": 0xBC, ",": 0xBC, "period": 0xBE, ".": 0xBE, "dot": 0xBE,
+    "slash": 0xBF, "/": 0xBF, "semicolon": 0xBA, ";": 0xBA, "quote": 0xDE, "'": 0xDE,
+    "bracketleft": 0xDB, "[": 0xDB, "bracketright": 0xDD, "]": 0xDD,
+    "backslash": 0xDC, "\\": 0xDC, "grave": 0xC0, "`": 0xC0,
+    "capslock": 0x14, "numlock": 0x90, "scrolllock": 0x91, "printscreen": 0x2C,
 }
+# Буквы и цифры: без них ctrl+c/ctrl+v/ctrl+s нажимали только Ctrl.
+VK.update({chr(code).lower(): code for code in range(ord("A"), ord("Z") + 1)})
+VK.update({chr(code): code for code in range(ord("0"), ord("9") + 1)})
 
 
 def _send(*inputs: INPUT) -> None:
     arr = (INPUT * len(inputs))(*inputs)
-    user32.SendInput(len(inputs), arr, ctypes.sizeof(INPUT))
+    sent = user32.SendInput(len(inputs), arr, ctypes.sizeof(INPUT))
+    if sent != len(inputs):
+        # UIPI, secure desktop, UAC: инструмент не должен врать об успехе.
+        raise OSError(f"SendInput принял {sent} из {len(inputs)} событий "
+                      f"(GetLastError={ctypes.GetLastError()})")
 
 
 def _mouse(flags: int, dx: int = 0, dy: int = 0, data: int = 0) -> INPUT:
@@ -167,18 +180,37 @@ def scroll(amount: int, x: int | None = None, y: int | None = None) -> dict[str,
 
 # ------------------------------------------------------------------ клавиатура
 def type_text(text: str) -> dict[str, Any]:
+    typed = 0
     for ch in text:
-        code = ord(ch)
-        _send(_key(0, scan=code, unicode=True), _key(0, up=True, scan=code, unicode=True))
+        if ch == "\n":
+            press("enter")
+            typed += 1
+            continue
+        if ch == "\t":
+            press("tab")
+            typed += 1
+            continue
+        # SendInput ждёт UTF-16 code units; эмодзи — суррогатная пара,
+        # поэтому кодируем целиком, а не по одному code point.
+        units = ch.encode("utf-16-le")
+        for i in range(0, len(units), 2):
+            code = units[i] | (units[i + 1] << 8)
+            _send(_key(0, scan=code, unicode=True), _key(0, up=True, scan=code, unicode=True))
+        typed += 1
         time.sleep(0.002)
-    return {"typed": len(text)}
+    return {"typed": typed}
 
 
 def press(combo: str) -> dict[str, Any]:
     parts = [p.strip().lower() for p in combo.replace("+", " ").split() if p.strip()]
-    codes = [VK[p] for p in parts if p in VK]
-    if not codes:
-        return {"error": f"неизвестная клавиша: {combo}"}
+    if not parts:
+        return {"error": "пустая комбинация"}
+    unknown = [p for p in parts if p not in VK]
+    if unknown:
+        # Раньше неизвестная клавиша молча выбрасывалась: ctrl+c нажимал
+        # только Ctrl. Теперь это явная ошибка.
+        return {"error": f"неизвестная клавиша: {', '.join(unknown)} (в {combo})"}
+    codes = [VK[p] for p in parts]
     for code in codes:
         _send(_key(code))
         time.sleep(0.01)
@@ -217,7 +249,8 @@ def windows() -> list[dict[str, Any]]:
 def focus(title_part: str) -> dict[str, Any]:
     for win in windows():
         if title_part.lower() in win["title"].lower():
-            user32.SetForegroundWindow(win["hwnd"])
+            if not user32.SetForegroundWindow(win["hwnd"]):
+                return {"error": f"Windows не разрешила переключить окно: {win['title']}"}
             time.sleep(0.15)
             return {"focused": win["title"], "rect": win["rect"]}
     return {"error": f"окно не найдено: {title_part}"}

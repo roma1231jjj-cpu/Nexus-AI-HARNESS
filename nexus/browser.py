@@ -20,9 +20,12 @@ SNAPSHOT_JS = r"""
     const s = getComputedStyle(el);
     return !(s.visibility === 'hidden' || s.display === 'none' || s.opacity === '0');
   };
+  document.querySelectorAll('[data-nexus-idx]')
+    .forEach((el) => el.removeAttribute('data-nexus-idx'));
   const items = [];
   for (const el of document.querySelectorAll(sel)) {
     if (!visible(el)) continue;
+    el.setAttribute('data-nexus-idx', String(items.length));
     const r = el.getBoundingClientRect();
     const label = (el.innerText || el.value || el.getAttribute('aria-label') ||
                    el.getAttribute('placeholder') || el.getAttribute('title') || '')
@@ -67,14 +70,22 @@ class BrowserHub:
         self._page = None
         self._handles: list[Any] = []
         self._lock = threading.Lock()
+        self._thread_lock = threading.Lock()
         self._signature: tuple | None = None
+        self._last_dialog: dict[str, Any] | None = None
+        self._hung = False
 
     # ---------------------------------------------------------------- инфраструктура
     def _ensure_thread(self) -> None:
-        if self._thread and self._thread.is_alive():
-            return
-        self._thread = threading.Thread(target=self._loop, name="nexus-browser", daemon=True)
-        self._thread.start()
+        # Без замка два параллельных вызова создавали два Playwright-потока
+        # и роняли sync API внутри asyncio/greenlet.
+        with self._thread_lock:
+            if self._hung:
+                raise RuntimeError("браузер завис на предыдущем вызове; перезапусти демон Nexus")
+            if self._thread and self._thread.is_alive():
+                return
+            self._thread = threading.Thread(target=self._loop, name="nexus-browser", daemon=True)
+            self._thread.start()
 
     def _loop(self) -> None:
         while True:
@@ -91,7 +102,10 @@ class BrowserHub:
         box: dict[str, Any] = {"done": threading.Event()}
         self._queue.put((fn, box))
         if not box["done"].wait(timeout):
-            raise TimeoutError("браузер не ответил вовремя")
+            # Задача осталась в Playwright-потоке; новые вызовы в очередь не
+            # кладём, иначе они тоже зависнут. Явная ошибка вместо тишины.
+            self._hung = True
+            raise TimeoutError("браузер не ответил вовремя; перезапусти демон Nexus")
         if "error" in box:
             raise RuntimeError(box["error"])
         return box.get("result")
@@ -123,18 +137,61 @@ class BrowserHub:
             "--no-default-browser-check",
             f"--window-size={viewport[0]},{viewport[1]}",
         ]
-        self._ctx = self._pw.chromium.launch_persistent_context(
-            user_data_dir=str(profile),
-            executable_path=exe,
-            headless=bool(self.cfg.get("headless", False)),
-            args=args,
-            viewport=None,
-            no_viewport=True,
-        )
+        try:
+            self._ctx = self._pw.chromium.launch_persistent_context(
+                user_data_dir=str(profile),
+                executable_path=exe,
+                headless=bool(self.cfg.get("headless", False)),
+                args=args,
+                viewport=None,
+                no_viewport=True,
+            )
+        except Exception as exc:  # noqa: BLE001
+            message = str(exc).lower()
+            if "processsingleton" in message or "user data directory" in message or "profile" in message:
+                raise RuntimeError(
+                    f"профиль браузера уже занят: {profile}. "
+                    "Закрой оставшийся Chrome/Edge с этим профилем или перезапусти демон.") from exc
+            raise
         self._ctx.set_default_timeout(20000)
+        self._ctx.on("page", self._on_page)
+        self._ctx.on("close", self._on_context_close)
         pages = self._ctx.pages
         self._page = pages[0] if pages else self._ctx.new_page()
+        self._attach(self._page)
         self._signature = signature
+
+    def _attach(self, page: Any) -> None:
+        def on_dialog(dialog: Any) -> None:
+            # confirm()/alert() иначе вешают страницу до таймаута.
+            self._last_dialog = {"type": getattr(dialog, "type", ""),
+                                 "message": str(getattr(dialog, "message", ""))[:500]}
+            try:
+                dialog.accept()
+            except Exception:  # noqa: BLE001
+                try:
+                    dialog.dismiss()
+                except Exception:  # noqa: BLE001
+                    pass
+
+        try:
+            page.on("dialog", on_dialog)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _on_page(self, page: Any) -> None:
+        # target=_blank: работаем с новой вкладкой, иначе снапшот и клики
+        # остаются на старой странице.
+        self._page = page
+        self._attach(page)
+        try:
+            page.bring_to_front()
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _on_context_close(self, _ctx: Any = None) -> None:
+        self._page = None
+        self._ctx = None
 
     def _shutdown(self) -> None:
         try:
@@ -169,13 +226,23 @@ class BrowserHub:
 
         return self.call(job, timeout=120)
 
+    def _snapshot_locked(self, text_limit: int = 2500) -> dict[str, Any]:
+        self._launch()
+        data = self._page.evaluate(SNAPSHOT_JS)
+        handles = self._page.query_selector_all("[data-nexus-idx]")
+        # Индексы снапшота и хэндлы теперь из одного набора: скрытые элементы
+        # не сдвигают нумерацию.
+        handles.sort(key=lambda h: int(h.get_attribute("data-nexus-idx") or 0))
+        self._handles = handles
+        data["text"] = (data.get("text") or "")[:text_limit]
+        if self._last_dialog:
+            data["dialog"] = self._last_dialog
+            self._last_dialog = None
+        return data
+
     def snapshot(self, text_limit: int = 2500) -> dict[str, Any]:
         def job():
-            self._launch()
-            self._handles = self._page.query_selector_all(SELECTOR)
-            data = self._page.evaluate(SNAPSHOT_JS)
-            data["text"] = (data.get("text") or "")[:text_limit]
-            return data
+            return self._snapshot_locked(text_limit)
 
         return self.call(job)
 
@@ -188,27 +255,41 @@ class BrowserHub:
               human: bool = True) -> dict[str, Any]:
         def job():
             self._launch()
-            if selector:
-                el = self._page.wait_for_selector(selector, timeout=15000)
-            elif index is not None:
-                el = self.element(index)
-            else:
-                raise ValueError("нужен index или selector")
-            el.scroll_into_view_if_needed(timeout=8000)
-            box = el.bounding_box()
-            if human and box:
-                # «фантомно» ведём настоящий курсор в центр элемента
-                from . import gui  # noqa: PLC0415
+            last = None
+            for attempt in range(2):
+                if selector:
+                    el = self._page.wait_for_selector(selector, timeout=15000)
+                elif index is not None:
+                    el = self.element(index)
+                else:
+                    raise ValueError("нужен index или selector")
+                try:
+                    el.scroll_into_view_if_needed(timeout=8000)
+                    box = el.bounding_box()
+                    if human and box:
+                        # «фантомно» ведём настоящий курсор в центр элемента
+                        from . import gui  # noqa: PLC0415
 
-                cx = int(box["x"] + box["width"] / 2)
-                cy = int(box["y"] + box["height"] / 2)
-                wx = cx + self._page.evaluate("window.screenX")
-                wy = cy + self._page.evaluate("window.screenY")
-                gui.move(wx, wy)
-                time.sleep(0.05)
-            el.click(timeout=15000)
-            time.sleep(0.5)
-            return {"clicked": index if index is not None else selector, "url": self._page.url}
+                        cx = int(box["x"] + box["width"] / 2)
+                        cy = int(box["y"] + box["height"] / 2)
+                        wx = cx + self._page.evaluate("window.screenX")
+                        wy = cy + self._page.evaluate("window.screenY")
+                        gui.move(wx, wy)
+                        time.sleep(0.05)
+                    el.click(timeout=15000)
+                    time.sleep(0.6)
+                    return {"clicked": index if index is not None else selector, "url": self._page.url}
+                except Exception as exc:  # noqa: BLE001
+                    last = exc
+                    if attempt or index is None:
+                        raise
+                    # DOM перерисовался: хэндл протух. Обновляем индексы один
+                    # раз и повторяем — модель не должна сдаваться.
+                    low = str(exc).lower()
+                    if "not attached" not in low and "detached" not in low and "element is not" not in low:
+                        raise
+                    self._snapshot_locked()
+            raise RuntimeError(str(last))
 
         return self.call(job, timeout=120)
 
@@ -216,15 +297,29 @@ class BrowserHub:
                   press_enter: bool = False) -> dict[str, Any]:
         def job():
             self._launch()
-            if selector:
-                el = self._page.wait_for_selector(selector, timeout=15000)
-            elif index is not None:
-                el = self.element(index)
+            last = None
+            for attempt in range(2):
+                if selector:
+                    el = self._page.wait_for_selector(selector, timeout=15000)
+                elif index is not None:
+                    el = self.element(index)
+                else:
+                    el = self._page.locator(":focus")
+                try:
+                    el.click(timeout=10000)
+                    el.fill("")
+                    el.type(text, delay=18)
+                    break
+                except Exception as exc:  # noqa: BLE001
+                    last = exc
+                    if attempt or index is None:
+                        raise
+                    low = str(exc).lower()
+                    if "not attached" not in low and "detached" not in low and "element is not" not in low:
+                        raise
+                    self._snapshot_locked()
             else:
-                el = self._page.locator(":focus")
-            el.click(timeout=10000)
-            el.fill("")
-            el.type(text, delay=18)
+                raise RuntimeError(str(last))
             if press_enter:
                 self._page.keyboard.press("Enter")
                 time.sleep(0.5)

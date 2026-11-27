@@ -206,10 +206,16 @@ def _decode(raw: bytes) -> str:
 
 
 def _todo_write(ctx: Ctx, items: list[dict[str, Any]]) -> str:
+    aliases = {"doing": "active", "todo": "pending", "completed": "done",
+               "canceled": "blocked", "cancelled": "blocked"}
+    allowed = {"pending", "active", "done", "blocked"}
     clean = []
     for item in items[:20]:
-        clean.append({"text": str(item.get("text", ""))[:200],
-                      "status": str(item.get("status", "pending"))})
+        status = str(item.get("status", "pending")).strip().lower()
+        status = aliases.get(status, status)
+        if status not in allowed:
+            status = "pending"
+        clean.append({"text": str(item.get("text", ""))[:200], "status": status})
     ctx.session["todos"] = clean
     return "план обновлён: " + ", ".join(f"{i['status']}:{i['text'][:40]}" for i in clean)
 
@@ -225,10 +231,17 @@ def _screen(ctx: Ctx) -> str:
             f"виртуальный стол {mono['width']}x{mono['height']} в ({mono['x']},{mono['y']}). "
             "Клик по пикселям — gui_click.")
 
+def _gui_json(data: dict[str, Any]) -> str:
+    # Возврат {"error": ...} без исключения раньше писал ok=true.
+    if data.get("error"):
+        raise RuntimeError(str(data["error"]))
+    return json.dumps(data, ensure_ascii=False)
+
+
 def _gui_click(ctx: Ctx, x: int, y: int, button: str = "left", clicks: int = 1) -> str:
     from . import gui  # noqa: PLC0415
 
-    return json.dumps(gui.click(x, y, button, clicks), ensure_ascii=False)
+    return _gui_json(gui.click(x, y, button, clicks))
 
 
 def _gui_move(ctx: Ctx, x: int, y: int) -> str:
@@ -241,25 +254,25 @@ def _gui_move(ctx: Ctx, x: int, y: int) -> str:
 def _gui_drag(ctx: Ctx, x1: int, y1: int, x2: int, y2: int) -> str:
     from . import gui  # noqa: PLC0415
 
-    return json.dumps(gui.drag(x1, y1, x2, y2), ensure_ascii=False)
+    return _gui_json(gui.drag(x1, y1, x2, y2))
 
 
 def _gui_type(ctx: Ctx, text: str) -> str:
     from . import gui  # noqa: PLC0415
 
-    return json.dumps(gui.type_text(text), ensure_ascii=False)
+    return _gui_json(gui.type_text(text))
 
 
 def _gui_press(ctx: Ctx, combo: str) -> str:
     from . import gui  # noqa: PLC0415
 
-    return json.dumps(gui.press(combo), ensure_ascii=False)
+    return _gui_json(gui.press(combo))
 
 
 def _gui_scroll(ctx: Ctx, amount: int, x: int | None = None, y: int | None = None) -> str:
     from . import gui  # noqa: PLC0415
 
-    return json.dumps(gui.scroll(amount, x, y), ensure_ascii=False)
+    return _gui_json(gui.scroll(amount, x, y))
 
 
 def _gui_windows(ctx: Ctx) -> str:
@@ -272,7 +285,7 @@ def _gui_windows(ctx: Ctx) -> str:
 def _gui_focus(ctx: Ctx, title: str) -> str:
     from . import gui  # noqa: PLC0415
 
-    return json.dumps(gui.focus(title), ensure_ascii=False)
+    return _gui_json(gui.focus(title))
 
 
 # ------------------------------------------------------------------ браузер
@@ -286,6 +299,9 @@ def _browser_snapshot(ctx: Ctx, text_limit: int = 2000) -> str:
     lines = [f"URL: {data['url']}", f"TITLE: {data['title']}"]
     if data.get("headings"):
         lines.append("ЗАГОЛОВКИ: " + " | ".join(data["headings"][:8]))
+    if data.get("dialog"):
+        d = data["dialog"]
+        lines.append(f"ДИАЛОГ: {d.get('type', '')} «{d.get('message', '')}» — принят автоматически")
     lines.append("ЭЛЕМЕНТЫ (индекс · тег · подпись · [x,y,w,h]):")
     for el in (data.get("elements") or [])[:100]:
         extra = f" name={el['name']}" if el.get("name") else ""
@@ -444,7 +460,7 @@ def _register() -> None:
     }, ["combo"]), _browser_press))
     add("browser_eval", _tool("browser_eval", "browser", _obj({
         "expression": {"type": "string", "description": "JS-выражение в странице"},
-    }, ["expression"]), _browser_eval))
+    }, ["expression"]), _browser_eval, risky=True))
     add("browser_screenshot", _tool("browser_screenshot", "browser", _obj({}, []), _browser_shot))
     add("browser_close", _tool("browser_close", "browser", _obj({}, []), _browser_close))
 

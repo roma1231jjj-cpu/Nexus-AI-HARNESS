@@ -72,8 +72,8 @@ Glassmorphism: полупрозрачные панели, размытие фо�
 | Версия | Файл | Кому |
 |---|---|---|
 | **Портабельная (один exe)** | `Nexus-AI-HARNESS.exe` | запустить и работать, данные рядом с файлом |
-| **Портабельный архив** | `Nexus-AI-HARNESS-1.1.2-portable.zip` | exe + README + LICENSE, распаковать в любую папку |
-| **Установщик** | `Nexus-AI-HARNESS-Setup-1.1.2.exe` | ярлыки в «Пуск» и на рабочем столе, деинсталлятор, без прав администратора |
+| **Портабельный архив** | `Nexus-AI-HARNESS-1.1.3-portable.zip` | exe + README + LICENSE, распаковать в любую папку |
+| **Установщик** | `Nexus-AI-HARNESS-Setup-1.1.3.exe` | ярлыки в «Пуск» и на рабочем столе, деинсталлятор, без прав администратора |
 
 Готовые файлы: [releases](https://github.com/roma1231jjj-cpu/Nexus-AI-HARNESS/releases).
 
@@ -85,8 +85,8 @@ python packaging/build.py --clean
 
 ```
 dist/portable/Nexus-AI-HARNESS.exe
-dist/archive/Nexus-AI-HARNESS-1.1.2-portable.zip
-dist/setup/Nexus-AI-HARNESS-Setup-1.1.2.exe
+dist/archive/Nexus-AI-HARNESS-1.1.3-portable.zip
+dist/setup/Nexus-AI-HARNESS-Setup-1.1.3.exe
 build/            промежуточные файлы PyInstaller
 ```
 

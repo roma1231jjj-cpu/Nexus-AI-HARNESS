@@ -69,9 +69,9 @@ def seed_demo() -> Path:
         "mode": "act",
         "messages": messages,
         "todos": [
-            {"id": "1", "text": "Разобрать структуру проекта", "state": "done"},
-            {"id": "2", "text": "Вынести настройки в config", "state": "doing"},
-            {"id": "3", "text": "Добавить тесты", "state": "todo"},
+            {"id": "1", "text": "Разобрать структуру проекта", "status": "done"},
+            {"id": "2", "text": "Вынести настройки в config", "status": "active"},
+            {"id": "3", "text": "Добавить тесты", "status": "pending"},
         ],
     }
     (SESSIONS / f"{DEMO_ID}.json").write_text(json.dumps(demo, ensure_ascii=False), encoding="utf-8")

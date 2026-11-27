@@ -13,6 +13,7 @@ import os
 import random
 import re
 import subprocess
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -245,13 +246,71 @@ def compose(categories: list[str], val_ratio: float = 0.03) -> dict[str, Any]:
 TQDM = re.compile(r"\|\s*(\d+)/(\d+)\s*\[([0-9:]+)<([0-9:]+),\s*[0-9.]+s/it\]")
 LOSS = re.compile(r"\{'loss': '([0-9.]+)'")
 
+# run.log растёт на гигабайты: держим разобранный хвост и читаем только
+# добавившиеся байты, а не весь файл на каждый запрос /api/training/status.
+_PROGRESS_LOCK = threading.Lock()
+_PROGRESS: dict[str, Any] = {"path": "", "offset": 0, "tail": "",
+                             "samples": [], "losses": [], "total": 0}
+
+
+def _progress() -> tuple[int, int, list[tuple[int, float]], list[float]]:
+    path = RUN_LOG
+    if not path.exists():
+        return 0, 0, [], []
+    with _PROGRESS_LOCK:
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return 0, 0, [], []
+        if _PROGRESS["path"] != str(path) or size < _PROGRESS["offset"]:
+            _PROGRESS.update({"path": str(path), "offset": 0, "tail": "",
+                              "samples": [], "losses": [], "total": 0})
+        if size > _PROGRESS["offset"]:
+            try:
+                with path.open("rb") as fh:
+                    fh.seek(_PROGRESS["offset"])
+                    raw = fh.read()
+                _PROGRESS["offset"] = size
+            except OSError:
+                return 0, 0, [], []
+            text = _PROGRESS["tail"] + raw.decode("utf-8", errors="ignore")
+            lines = text.replace("\r", "\n").split("\n")
+            _PROGRESS["tail"] = lines.pop() if lines else ""
+            for line in lines:
+                m = TQDM.search(line)
+                if m:
+                    steps, total = int(m.group(1)), int(m.group(2))
+                    _PROGRESS["total"] = total
+                    _PROGRESS["samples"].append((steps, _hms(m.group(3))))
+                    _PROGRESS["samples"] = _PROGRESS["samples"][-20:]
+                lm = LOSS.search(line)
+                if lm:
+                    try:
+                        _PROGRESS["losses"].append(float(lm.group(1)))
+                        _PROGRESS["losses"] = _PROGRESS["losses"][-120:]
+                    except ValueError:
+                        pass
+        samples = list(_PROGRESS["samples"])
+        losses = list(_PROGRESS["losses"])
+        total = int(_PROGRESS["total"] or 0)
+        steps = samples[-1][0] if samples else 0
+        return steps, total, samples, losses
+
 
 def _alive(pid: int) -> bool:
     if not pid:
         return False
-    out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/NH"],
-                         capture_output=True, text=True, errors="replace").stdout
-    return str(pid) in out
+    try:
+        out = subprocess.run(["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True, errors="replace").stdout
+    except OSError:
+        return False
+    # Сравниваем точный PID: подстрока "123" в "1234" больше не считается жизнью.
+    for line in out.splitlines():
+        fields = [part.strip().strip('"') for part in line.split('","')]
+        if len(fields) >= 2 and fields[1] == str(pid):
+            return True
+    return False
 
 
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
@@ -314,6 +373,9 @@ def start(params: dict[str, Any]) -> dict[str, Any]:
         proc = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT,
                                 cwd=str(FINETUNE_ROOT), env=env,
                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except OSError as exc:
+        return {"error": f"не удалось запустить обучение: {exc}",
+                "code": "ev.trainStartFailed", "vars": {"error": str(exc)}}
     finally:
         log.close()
     meta = {"pid": proc.pid, "run_name": name, "categories": categories,
@@ -350,27 +412,15 @@ def status() -> dict[str, Any]:
     per_step = 0.0
     eta = 0.0
     last_losses: list[float] = []
-    samples: list[tuple[int, float]] = []
-    if RUN_LOG.exists():
-        raw = RUN_LOG.read_text(encoding="utf-8", errors="ignore")
-        for line in raw.replace("\r", "\n").split("\n"):
-            m = TQDM.search(line)
-            if m:
-                steps, total = int(m.group(1)), int(m.group(2))
-                samples.append((steps, _hms(m.group(3))))
-            lm = LOSS.search(line)
-            if lm:
-                try:
-                    last_losses.append(float(lm.group(1)))
-                except ValueError:
-                    pass
+    steps, total, samples, last_losses = _progress()
+    if last_losses:
+        loss = last_losses[-1]
+    if samples:
         window = samples[-11:]
         if len(window) >= 2 and window[-1][1] > window[0][1]:
             per_step = (window[-1][1] - window[0][1]) / max(1, window[-1][0] - window[0][0])
         if per_step and total:
             eta = (total - steps) * per_step
-        if last_losses:
-            loss = last_losses[-1]
     running = bool(pid) and _alive(pid)
     return {
         "running": running,
