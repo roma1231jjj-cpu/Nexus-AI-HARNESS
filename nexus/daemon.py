@@ -132,6 +132,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
+        # интерфейс и API нельзя встраивать в чужой iframe: иначе страница
+        # может подсунуть нашу вкладку и работать с ней кликами
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Content-Security-Policy", "frame-ancestors 'none'")
+        self.send_header("Referrer-Policy", "no-referrer")
         for key, value in (extra or {}).items():
             self.send_header(key, value)
         self.end_headers()
@@ -153,7 +158,10 @@ class Handler(BaseHTTPRequestHandler):
     def _origin_ok(self) -> bool:
         origin = (self.headers.get("Origin") or "").strip().lower()
         if not origin:
-            return True
+            # Без Origin приходят только переходы браузера (GET). Для
+            # изменяющих запросов это либо чужой iframe, либо старый клиент —
+            # разрешать им доступ нельзя.
+            return self.command in ("GET", "HEAD")
         port = self.server.server_address[1]
         return origin in (f"http://127.0.0.1:{port}", f"http://localhost:{port}",
                           f"http://[::1]:{port}")

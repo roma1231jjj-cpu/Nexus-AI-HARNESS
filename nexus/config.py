@@ -163,18 +163,34 @@ def _detect_browser() -> str:
     return ""
 
 
+def _read_json(path: Path) -> dict | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 def load() -> dict:
     DATA.mkdir(parents=True, exist_ok=True)
-    source = CONFIG_PATH if CONFIG_PATH.exists() else LEGACY_CONFIG
     cfg = copy.deepcopy(DEFAULTS)
-    if source.exists():
+    legacy = _read_json(LEGACY_CONFIG) if LEGACY_CONFIG.exists() else None
+    local = _read_json(CONFIG_PATH) if CONFIG_PATH.exists() else None
+    if legacy is not None:
+        cfg = _merge(cfg, legacy)
+    if local is not None:
+        cfg = _merge(cfg, local)
+    # data/config.json остался в старых инструкциях: если его правят позже
+    # config.local.json, правка должна примениться, а не потеряться молча
+    legacy_newer = False
+    if legacy is not None and CONFIG_PATH.exists():
         try:
-            cfg = _merge(DEFAULTS, json.loads(source.read_text(encoding="utf-8")))
-            if source == LEGACY_CONFIG:
-                # старый data/config.json больше не пишем: он в git и делал дерево грязным
-                save(cfg)
-        except (json.JSONDecodeError, OSError):
-            pass
+            legacy_newer = LEGACY_CONFIG.stat().st_mtime > CONFIG_PATH.stat().st_mtime
+        except OSError:
+            legacy_newer = False
+    if legacy is not None and (local is None or legacy_newer):
+        cfg = _merge(cfg, legacy)
+        save(cfg)
     if not (cfg.get("browser") or {}).get("executable"):
         cfg.setdefault("browser", {})["executable"] = _detect_browser()
     return cfg

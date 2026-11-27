@@ -78,7 +78,9 @@ def main() -> int:
     print("публикую ветку и тег…")
     subprocess.run(["git", "tag", "-f", args.tag, "-m", f"Nexus-AI-HARNESS {VERSION}"],
                    cwd=str(ROOT))
-    subprocess.run(["git", "push", "origin", "HEAD:master"], cwd=str(ROOT))
+    # ветка обновлений — main: master в репозитории нет, пуш туда создавал
+    # сиротскую ветку, и автообновление не видело новых версий
+    subprocess.run(["git", "push", "origin", "HEAD:main"], cwd=str(ROOT))
     subprocess.run(["git", "push", "-f", "origin", args.tag], cwd=str(ROOT))
 
     note = ["Портабельный exe, архив и установщик.",

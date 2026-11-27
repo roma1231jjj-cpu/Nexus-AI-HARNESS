@@ -72,8 +72,8 @@ Glassmorphism: полупрозрачные панели, размытие фо�
 | Версия | Файл | Кому |
 |---|---|---|
 | **Портабельная (один exe)** | `Nexus-AI-HARNESS.exe` | запустить и работать, данные рядом с файлом |
-| **Портабельный архив** | `Nexus-AI-HARNESS-1.1.4-portable.zip` | exe + README + LICENSE, распаковать в любую папку |
-| **Установщик** | `Nexus-AI-HARNESS-Setup-1.1.4.exe` | ярлыки в «Пуск» и на рабочем столе, деинсталлятор, без прав администратора |
+| **Портабельный архив** | `Nexus-AI-HARNESS-1.1.5-portable.zip` | exe + README + LICENSE, распаковать в любую папку |
+| **Установщик** | `Nexus-AI-HARNESS-Setup-1.1.5.exe` | ярлыки в «Пуск» и на рабочем столе, деинсталлятор, без прав администратора |
 
 Готовые файлы: [releases](https://github.com/roma1231jjj-cpu/Nexus-AI-HARNESS/releases).
 
@@ -85,8 +85,8 @@ python packaging/build.py --clean
 
 ```
 dist/portable/Nexus-AI-HARNESS.exe
-dist/archive/Nexus-AI-HARNESS-1.1.4-portable.zip
-dist/setup/Nexus-AI-HARNESS-Setup-1.1.4.exe
+dist/archive/Nexus-AI-HARNESS-1.1.5-portable.zip
+dist/setup/Nexus-AI-HARNESS-Setup-1.1.5.exe
 build/            промежуточные файлы PyInstaller
 ```
 
@@ -135,8 +135,10 @@ python -m venv .venv
 
 - `browser_open` `browser_snapshot` `browser_click` `browser_type` `browser_press`
   `browser_eval` `browser_screenshot` `browser_close` — инструменты этого браузера.
-- `browser.headless: true` в `data/config.json` — браузер работает без окна, на экране
-  ничего не появляется (проверено: навигация и снимки работают).
+- `browser.headless: true` в `data/config.local.json` — браузер работает без окна, на экране
+  ничего не появляется (проверено: навигация и снимки работают). Старый
+  `data/config.json` читается, а его правки применяются, только если файл
+  изменён позже `config.local.json`.
 - Смена `profile_dir`, `headless` или `executable` перезапускает браузер на лету.
 
 Отдельно есть `browse` — MCP-сервер, который управляет **реальным** браузером владельца
