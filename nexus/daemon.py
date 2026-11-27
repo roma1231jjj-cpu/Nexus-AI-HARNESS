@@ -250,6 +250,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(session)
 
         if len(parts) == 4 and parts[:2] == ["api", "sessions"] and parts[3] == "events":
+            # SSE для удалённой/опечатанной сессии иначе висит 200 и клиент
+            # считает поток живым, хотя событий не будет никогда.
+            if APP.store.get(parts[2]) is None:
+                return self._json({"error": "нет сессии", "code": "ev.noSession",
+                                   "vars": {}}, 404)
             return self._sse(parts[2])
 
         if len(parts) == 3 and parts[0] == "api" and parts[1] == "shots":
@@ -341,6 +346,22 @@ class Handler(BaseHTTPRequestHandler):
             if "mode" in body and not config.valid_mode(body.get("mode")):
                 return self._json({"error": "неизвестный режим", "code": "ev.badMode",
                                    "vars": {}}, 400)
+            if "workspace" in body and not isinstance(body["workspace"], str):
+                return self._json({"error": "workspace должен быть строкой",
+                                   "code": "ev.badConfig", "vars": {"field": "workspace"}}, 400)
+            if "max_steps" in body:
+                steps = body["max_steps"]
+                if isinstance(steps, bool) or not isinstance(steps, int) or not 1 <= steps <= 200:
+                    return self._json({"error": "max_steps: целое от 1 до 200",
+                                       "code": "ev.badConfig", "vars": {"field": "max_steps"}}, 400)
+            for field in ("provider", "model"):
+                if field in body and not isinstance(body[field], str):
+                    return self._json({"error": f"{field} должен быть строкой",
+                                       "code": "ev.badConfig", "vars": {"field": field}}, 400)
+            for field in ("providers", "browser"):
+                if field in body and not isinstance(body[field], dict):
+                    return self._json({"error": f"{field} должен быть объектом",
+                                       "code": "ev.badConfig", "vars": {"field": field}}, 400)
             APP.refresh(body)
             # UI ждёт и эффективную модель провайдера, а не только cfg.
             return self._json(APP.state())

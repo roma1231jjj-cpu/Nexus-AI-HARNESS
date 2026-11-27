@@ -335,7 +335,31 @@ def start(params: dict[str, Any]) -> dict[str, Any]:
         return {"error": "категории должны быть списком", "code": "ev.trainBadCategories", "vars": {}}
     if "categories" in params and not params.get("categories"):
         return {"error": "не выбрано ни одной категории", "code": "ev.trainNoCategories", "vars": {}}
+    numeric = {
+        "val_ratio": (float, 0.0, 0.5), "seq": (int, 128, 4096),
+        "ga": (int, 1, 64), "epochs": (int, 1, 10), "lr": (float, 1e-6, 1e-3),
+        "r": (int, 1, 128), "save_steps": (int, 10, 10000),
+        "max_steps": (int, -1, 1_000_000),
+    }
+    for key, (cast, lo, hi) in numeric.items():
+        if key not in params or params[key] in (None, ""):
+            continue
+        try:
+            value = cast(params[key])
+            if isinstance(params[key], bool) or not lo <= value <= hi:
+                raise ValueError
+        except (TypeError, ValueError):
+            return {"error": f"параметр {key}: ожидается число от {lo} до {hi}",
+                    "code": "ev.trainBadParam", "vars": {"field": key}}
+    for key in ("run_name", "out", "base_model"):
+        if key in params and params[key] is not None and not isinstance(params[key], str):
+            return {"error": f"параметр {key} должен быть строкой",
+                    "code": "ev.trainBadParam", "vars": {"field": key}}
     categories = params.get("categories") or [c["id"] for c in CATEGORIES]
+    unknown = [c for c in categories if c not in CATEGORY_IDS]
+    if unknown:
+        return {"error": "неизвестные категории: " + ", ".join(map(str, unknown[:5])),
+                "code": "ev.trainBadCategories", "vars": {"names": ", ".join(map(str, unknown[:5]))}}
     counts = compose(categories, _num(params, "val_ratio", 0.03, 0.0, 0.5, float))
     if counts["train"] < 8:
         return {"error": f"мало материала: {counts['train']} примеров (нужно минимум 8)",
